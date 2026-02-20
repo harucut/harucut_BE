@@ -14,7 +14,19 @@ public class CookieUtil {
 			.secure(true)
 			.path("/")
 			.maxAge(Duration.ofMillis(maxAgeMillis))
-			.sameSite("Strict")
+			.sameSite("None")
+			// .domain("harucut.com")
+			.build();
+	}
+
+	public ResponseCookie createExpiredCookie(String name) {
+		return ResponseCookie.from(name, "")
+			.httpOnly(true)
+			.secure(true)
+			.path("/")
+			.maxAge(0)
+			.sameSite("None")
+			// .domain("harucut.com")
 			.build();
 	}
 }

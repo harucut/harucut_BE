@@ -63,7 +63,9 @@ public class S3FileStorageService implements FileStorageService {
 	public String upload(String dir, String filename, InputStream inputStream, long contentLength, String contentType) {
 
 		String extension = extractExtension(filename);
-		String uniqueName = UUID.randomUUID() + extension;
+		String uniqueName = extension.isEmpty()
+			? UUID.randomUUID().toString()
+			: UUID.randomUUID() + "." + extension;
 		String key = (dir != null && !dir.isBlank())
 			? dir + "/" + uniqueName
 			: uniqueName;

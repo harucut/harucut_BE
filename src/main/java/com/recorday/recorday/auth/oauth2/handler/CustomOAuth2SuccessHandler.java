@@ -58,6 +58,6 @@ public class CustomOAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHa
 		response.addHeader(HttpHeaders.SET_COOKIE, accessCookie.toString());
 		response.addHeader(HttpHeaders.SET_COOKIE, refreshCookie.toString());
 
-		getRedirectStrategy().sendRedirect(request, response, REDIRECT_URL);
+		getRedirectStrategy().sendRedirect(request, response, REDIRECT_URL + "/home");
 	}
 }

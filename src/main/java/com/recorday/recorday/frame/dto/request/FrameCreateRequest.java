@@ -40,8 +40,9 @@ public record FrameCreateRequest(
 		double y,
 		double width,
 		double height,
+		double scale,
 		double rotation,
 		int zIndex,
-		Map<String, Object> style
+		Map<String, Object> styleJson
 	) {}
 }

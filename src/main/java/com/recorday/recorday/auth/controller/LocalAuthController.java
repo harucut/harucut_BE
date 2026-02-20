@@ -1,5 +1,6 @@
 package com.recorday.recorday.auth.controller;
 
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -26,6 +27,7 @@ import com.recorday.recorday.auth.local.service.LocalLoginService;
 import com.recorday.recorday.auth.local.service.LocalUserAuthService;
 import com.recorday.recorday.auth.local.service.PasswordService;
 import com.recorday.recorday.auth.service.UserExitService;
+import com.recorday.recorday.auth.utils.CookieUtil;
 import com.recorday.recorday.util.response.Response;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -46,37 +48,44 @@ public class LocalAuthController {
 	private final LocalUserAuthService localUserAuthService;
 	private final UserExitService userExitService;
 	private final PasswordService passwordService;
+	private final CookieUtil cookieUtil;
 
 	@Operation(summary = "이메일 로그인", description = "등록된 이메일과 비밀번호로 로그인하여 Access/Refresh 토큰을 쿠키로 발급받습니다.")
-	@PostMapping("/recorday/login")
+	@PostMapping("/harucut/login")
 	public ResponseEntity<Response<LoginResponse>> login(@RequestBody @Valid LocalLoginRequest request) {
 		LoginResult result = localLoginService.login(request);
 
 		LoginResponse responseBody = new LoginResponse(result.userStatus());
 
-		return Response.ok(responseBody).toResponseEntity(result.cookies());
+		return ResponseEntity.ok()
+			.header(HttpHeaders.SET_COOKIE, result.cookies().accessTokenCookie().toString())
+			.header(HttpHeaders.SET_COOKIE, result.cookies().refreshTokenCookie().toString())
+			.body(Response.ok(responseBody));
 	}
 
 	@Operation(summary = "이메일 회원가입", description = "새로운 사용자를 등록합니다.")
-	@PostMapping("/recorday/register")
+	@PostMapping("/harucut/register")
 	public ResponseEntity<Response<Void>> register(@RequestBody @Valid LocalRegisterRequest request) {
 		localUserAuthService.register(request);
 		return Response.ok().toResponseEntity();
 	}
 
 	@Operation(summary = "회원 탈퇴", description = "현재 로그인된 사용자의 계정을 삭제하고 탈퇴 요청 처리합니다. 7일 뒤 자정에 진짜 삭제됩니다.")
-	@DeleteMapping("/recorday/exit")
+	@DeleteMapping("/harucut/exit")
 	public ResponseEntity<Response<Void>> exit(
 		@Parameter(hidden = true)
 		@AuthenticationPrincipal CustomUserPrincipal principal
 	) {
 		userExitService.requestExit(principal.getId());
-		return Response.ok().toResponseEntity();
+		return ResponseEntity.ok()
+			.header(HttpHeaders.SET_COOKIE, cookieUtil.createExpiredCookie("accessToken").toString())
+			.header(HttpHeaders.SET_COOKIE, cookieUtil.createExpiredCookie("refreshToken").toString())
+			.body(Response.ok());
 	}
 
 	@Operation(summary = "회원 탈퇴 취소", description = "현재 로그인된 사용자의 계정을 탈퇴 취소합니다.")
 	@PreAuthorize("hasRole('DELETED_REQUESTED')")
-	@PostMapping("/recorday/reactivate")
+	@PostMapping("/harucut/reactivate")
 	public ResponseEntity<Response<Void>> reactivate(
 		@Parameter(hidden = true)
 		@AuthenticationPrincipal CustomUserPrincipal principal
@@ -95,7 +104,7 @@ public class LocalAuthController {
 		@ApiResponse(responseCode = "400", description = "인증 실패 (코드가 일치하지 않거나 만료됨)"),
 		@ApiResponse(responseCode = "404", description = "존재하지 않는 사용자")
 	})
-	@PostMapping("/recorday/reset/password/verification")
+	@PostMapping("/harucut/reset/password/verification")
 	public ResponseEntity<Response<EmailAuthVerifyResponse>> verifyAuthCode(@RequestBody @Valid EmailAuthVerifyRequest request) {
 
 		EmailAuthVerifyResponse emailAuthVerifyResponse = passwordService.verifyAuthCode(request.email(),
@@ -105,7 +114,7 @@ public class LocalAuthController {
 	}
 
 	@Operation(summary = "비밀번호 재설정 (찾기)", description = "새로운 비밀번호로 변경합니다. 리셋 토큰은 10분 유효")
-	@PatchMapping("/recorday/reset/password")
+	@PatchMapping("/harucut/reset/password")
 	public ResponseEntity<Response<Void>> resetPassword(
 		@RequestBody LocalResetPasswordRequest request
 	) {
@@ -116,7 +125,7 @@ public class LocalAuthController {
 
 	@Deprecated
 	@Operation(summary = "기존 비밀번호 검증", description = "기존 비밀번호를 검증합니다.")
-	@GetMapping("/recorday/verify/password")
+	@GetMapping("/harucut/verify/password")
 	public ResponseEntity<Response<Void>> verifyPassword(
 		@Parameter(hidden = true)
 		@AuthenticationPrincipal CustomUserPrincipal principal,
@@ -128,7 +137,7 @@ public class LocalAuthController {
 	}
 
 	@Operation(summary = "비밀번호 변경", description = "기존 비밀번호를 검증한 후, 일치하면 새로운 비밀번호로 변경합니다.")
-	@PatchMapping("/recorday/change/password")
+	@PatchMapping("/harucut/change/password")
 	public ResponseEntity<Response<Void>> changePassword(
 		@Parameter(hidden = true)
 		@AuthenticationPrincipal CustomUserPrincipal principal,

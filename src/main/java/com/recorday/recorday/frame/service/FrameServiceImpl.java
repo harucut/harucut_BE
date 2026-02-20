@@ -180,13 +180,14 @@ public class FrameServiceImpl implements FrameService {
 		return componentRequests.stream()
 			.map(dto -> {
 				String finalKey = resolvedUrlMap.getOrDefault(dto.source(), dto.source());
-				String styleJson = frameStyleConverter.convertToJson(dto.style());
+				String styleJson = frameStyleConverter.convertToJson(dto.styleJson());
 
 				return FrameComponent.builder()
 					.type(dto.type())
 					.source(finalKey)
 					.x(dto.x()).y(dto.y())
 					.width(dto.width()).height(dto.height())
+					.scale(dto.scale())
 					.rotation(dto.rotation()).zIndex(dto.zIndex())
 					.styleJson(styleJson)
 					.build();

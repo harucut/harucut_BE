@@ -47,6 +47,9 @@ public class UserExitServiceImpl implements UserExitService {
 
 		handlers.forEach(handler -> handler.handleUserDeletion(userId));
 
+		// 영속성 컨텍스트 클리어 후 재조회 (handlers 내부의 @Modifying(clearAutomatically=true)로 인해 detached 상태)
+		user = userReader.getUserById(userId);
+
 		for (OAuth2UnlinkService unlinkService : unlinkServices) {
 			if (unlinkService.supports(user.getProvider())) {
 				unlinkService.unlink(user);

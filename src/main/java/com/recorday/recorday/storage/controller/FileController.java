@@ -1,7 +1,5 @@
 package com.recorday.recorday.storage.controller;
 
-import java.time.Duration;
-
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -11,11 +9,13 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.context.request.async.DeferredResult;
 
 import com.recorday.recorday.auth.entity.CustomUserPrincipal;
+import com.recorday.recorday.media.dto.TranscodeRequest;
+import com.recorday.recorday.media.service.TranscodingService;
 import com.recorday.recorday.storage.dto.request.PresignedUploadRequest;
 import com.recorday.recorday.storage.dto.response.PresignedUploadResponse;
-import com.recorday.recorday.storage.enums.UploadType;
 import com.recorday.recorday.storage.service.FileStorageService;
 import com.recorday.recorday.util.response.Response;
 
@@ -31,6 +31,7 @@ import lombok.RequiredArgsConstructor;
 public class FileController {
 
 	private final FileStorageService fileStorageService;
+	private final TranscodingService transcodingService;
 
 	@Operation(
 		summary = "Presigned URL 생성",
@@ -70,5 +71,27 @@ public class FileController {
 		fileStorageService.delete(key);
 
 		return Response.ok().toResponseEntity();
+	}
+
+	@Operation(
+		summary = "동영상 변환 요청 (WebM -> MP4)",
+		description = "S3에 WebM 업로드가 완료된 후, 이 API를 호출하면 MediaConvert 작업을 시작합니다."
+	)
+	@PostMapping("/transcode")
+	public DeferredResult<ResponseEntity<Response<Void>>> startTranscoding(
+		@RequestBody @Valid TranscodeRequest request,
+		@AuthenticationPrincipal CustomUserPrincipal principal
+	) {
+		// 1. 타임아웃 설정
+		DeferredResult<ResponseEntity<Response<Void>>> deferredResult = new DeferredResult<>(120000L);
+
+		// 2. AWS에 요청 보내고 Job ID 받기
+		String jobId = transcodingService.createConversionJob(principal.getPublicId(), request.filename());
+
+		// 3. Job ID와 대기 객체를 서비스에 등록 (Webhook이 올 때까지 대기 시작)
+		transcodingService.registerDeferredResult(jobId, deferredResult);
+
+		// 4. 즉시 리턴하지만, 실제 응답은 Webhook이 trigger 하거나 타임아웃 될 때 나감
+		return deferredResult;
 	}
 }

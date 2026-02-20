@@ -1,5 +1,6 @@
 package com.recorday.recorday.auth.jwt.controller;
 
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.CookieValue;
@@ -13,6 +14,7 @@ import com.recorday.recorday.auth.entity.CustomUserPrincipal;
 import com.recorday.recorday.auth.jwt.dto.AuthTokenCookies;
 import com.recorday.recorday.auth.jwt.service.RefreshTokenService;
 import com.recorday.recorday.auth.local.dto.response.AuthTokenResponse;
+import com.recorday.recorday.auth.utils.CookieUtil;
 import com.recorday.recorday.util.response.Response;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -27,9 +29,10 @@ import lombok.RequiredArgsConstructor;
 public class RefreshTokenController {
 
 	private final RefreshTokenService refreshTokenService;
+	private final CookieUtil cookieUtil;
 
 	@Operation(summary = "토큰 재발급", description = "쿠키에 포함된 Refresh Token을 검증하여 새로운 Access Token과 Refresh Token을 쿠키로 발급합니다.")
-	@PostMapping("/recorday/reissue")
+	@PostMapping("/harucut/reissue")
 	public ResponseEntity<Response<Void>> reissue(
 		@Parameter(description = "리프레시 토큰 쿠키", required = true)
 		@CookieValue("refreshToken") String refreshToken
@@ -38,13 +41,16 @@ public class RefreshTokenController {
 		return Response.ok().toResponseEntity(tokens);
 	}
 
-	@Operation(summary = "로그아웃", description = "서버(Redis)에 저장된 해당 사용자의 Refresh Token을 삭제하여 로그아웃 처리합니다.")
-	@DeleteMapping("/recorday/logout")
+	@Operation(summary = "로그아웃", description = "서버(Redis)에 저장된 해당 사용자의 Refresh Token을 삭제하고 브라우저 쿠키를 만료시킵니다.")
+	@DeleteMapping("/harucut/logout")
 	public ResponseEntity<Response<Void>> logout(
 		@Parameter(hidden = true)
 		@AuthenticationPrincipal CustomUserPrincipal principal
 	) {
 		refreshTokenService.logout(principal.getPublicId());
-		return Response.ok().toResponseEntity();
+		return ResponseEntity.ok()
+			.header(HttpHeaders.SET_COOKIE, cookieUtil.createExpiredCookie("accessToken").toString())
+			.header(HttpHeaders.SET_COOKIE, cookieUtil.createExpiredCookie("refreshToken").toString())
+			.body(Response.ok());
 	}
 }
