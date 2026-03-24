@@ -28,5 +28,8 @@ public class BasePublicIdEntity extends BaseEntity{
 				10
 			);
 		}
+		onPrePersist();
 	}
+
+	protected void onPrePersist() {}
 }

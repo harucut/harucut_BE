@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 
 import com.recorday.recorday.auth.oauth2.enums.Provider;
 import com.recorday.recorday.exception.BusinessException;
+import com.recorday.recorday.subscription.entity.UserSubscription;
 import com.recorday.recorday.user.entity.User;
 import com.recorday.recorday.user.enums.PlanTier;
 import com.recorday.recorday.user.enums.UserRole;
@@ -55,12 +56,48 @@ class SubscriptionPolicyServiceTest {
 	@DisplayName("PRO 요금제는 영상 다운로드 제한이 없다")
 	void assertAndConsumeVideoDownloadQuota_proUnlimited() {
 		User user = createUser(PlanTier.PRO);
+		UserSubscription subscription = user.getSubscription();
 
 		for (int i = 0; i < 100; i++) {
 			subscriptionPolicyService.assertAndConsumeVideoDownloadQuota(user);
 		}
 
-		assertThat(user.getMonthlyVideoDownloadCount()).isEqualTo(0);
+		assertThat(subscription.getCurrentVideoDownloadCount()).isEqualTo(0);
+	}
+
+	@Test
+	@DisplayName("31일 주기가 지난 뒤 첫 요청 시 사용량이 초기화되고 새 주기로 넘어간다")
+	void assertAndConsumeVideoDownloadQuota_rolloverBy31DaysCycle() {
+		LocalDateTime now = LocalDateTime.now();
+		LocalDateTime pastStart = now.minusDays(40);
+		LocalDateTime pastEnd = pastStart.plusDays(31);
+
+		User user = User.builder()
+			.id(1L)
+			.publicId("user-public-id")
+			.provider(Provider.HARUCUT)
+			.userRole(UserRole.ROLE_USER)
+			.email("plan@test.com")
+			.username("plan-user")
+			.profileUrl("resources/defaults/userDefaultImage.png")
+			.userStatus(UserStatus.ACTIVE)
+			.build();
+		UserSubscription subscription = UserSubscription.builder()
+			.user(user)
+			.planTier(PlanTier.BASIC)
+			.currentCycleStartAt(pastStart)
+			.currentCycleEndAt(pastEnd)
+			.currentVideoDownloadCount(1)
+			.currentFrameCreateCount(0)
+			.build();
+		user.attachSubscription(subscription);
+
+		assertThatCode(() -> subscriptionPolicyService.assertAndConsumeVideoDownloadQuota(user))
+			.doesNotThrowAnyException();
+
+		assertThat(subscription.getCurrentVideoDownloadCount()).isEqualTo(1);
+		assertThat(subscription.getCurrentCycleStartAt()).isEqualTo(pastEnd);
+		assertThat(subscription.getCurrentCycleEndAt()).isEqualTo(pastEnd.plusDays(31));
 	}
 
 	@Test
@@ -88,7 +125,7 @@ class SubscriptionPolicyServiceTest {
 	}
 
 	private User createUser(PlanTier tier) {
-		return User.builder()
+		User user = User.builder()
 			.id(1L)
 			.publicId("user-public-id")
 			.provider(Provider.HARUCUT)
@@ -97,7 +134,11 @@ class SubscriptionPolicyServiceTest {
 			.username("plan-user")
 			.profileUrl("resources/defaults/userDefaultImage.png")
 			.userStatus(UserStatus.ACTIVE)
-			.planTier(tier)
 			.build();
+		user.attachSubscription(UserSubscription.builder()
+			.user(user)
+			.planTier(tier)
+			.build());
+		return user;
 	}
 }

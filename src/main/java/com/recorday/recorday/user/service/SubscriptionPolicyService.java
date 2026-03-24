@@ -1,11 +1,11 @@
 package com.recorday.recorday.user.service;
 
 import java.time.LocalDateTime;
-import java.time.YearMonth;
 
 import org.springframework.stereotype.Service;
 
 import com.recorday.recorday.exception.BusinessException;
+import com.recorday.recorday.subscription.entity.UserSubscription;
 import com.recorday.recorday.user.entity.User;
 import com.recorday.recorday.user.enums.PlanTier;
 import com.recorday.recorday.user.exception.UserErrorCode;
@@ -14,37 +14,40 @@ import com.recorday.recorday.user.exception.UserErrorCode;
 public class SubscriptionPolicyService {
 
 	public void assertAndConsumeVideoDownloadQuota(User user) {
-		user.syncQuotaMonth(YearMonth.now());
+		UserSubscription subscription = resolveSubscription(user);
+		subscription.syncQuotaCycle(LocalDateTime.now());
 
-		PlanTier planTier = user.getPlanTier();
+		PlanTier planTier = subscription.getPlanTier();
 		if (planTier.isVideoDownloadUnlimited()) {
 			return;
 		}
 
-		if (user.getMonthlyVideoDownloadCount() >= planTier.getMonthlyVideoDownloadLimit()) {
+		if (subscription.getCurrentVideoDownloadCount() >= planTier.getMonthlyVideoDownloadLimit()) {
 			throw new BusinessException(UserErrorCode.PLAN_VIDEO_DOWNLOAD_LIMIT_EXCEEDED);
 		}
 
-		user.increaseMonthlyVideoDownloadCount();
+		subscription.increaseVideoDownloadCount();
 	}
 
 	public void assertAndConsumeFrameCreateQuota(User user) {
-		user.syncQuotaMonth(YearMonth.now());
+		UserSubscription subscription = resolveSubscription(user);
+		subscription.syncQuotaCycle(LocalDateTime.now());
 
-		PlanTier planTier = user.getPlanTier();
+		PlanTier planTier = subscription.getPlanTier();
 		if (planTier.isFrameCreateUnlimited()) {
 			return;
 		}
 
-		if (user.getMonthlyFrameCreateCount() >= planTier.getMonthlyFrameCreateLimit()) {
+		if (subscription.getCurrentFrameCreateCount() >= planTier.getMonthlyFrameCreateLimit()) {
 			throw new BusinessException(UserErrorCode.PLAN_FRAME_CREATE_LIMIT_EXCEEDED);
 		}
 
-		user.increaseMonthlyFrameCreateCount();
+		subscription.increaseFrameCreateCount();
 	}
 
 	public LocalDateTime resolveHistoryCutoff(User user) {
-		PlanTier planTier = user.getPlanTier();
+		UserSubscription subscription = resolveSubscription(user);
+		PlanTier planTier = subscription.getPlanTier();
 		if (planTier.isHistoryUnlimited()) {
 			return null;
 		}
@@ -63,5 +66,14 @@ public class SubscriptionPolicyService {
 		}
 
 		throw new BusinessException(UserErrorCode.PLAN_HISTORY_RETENTION_EXCEEDED);
+	}
+
+	private UserSubscription resolveSubscription(User user) {
+		UserSubscription subscription = user.getSubscription();
+		if (subscription != null) {
+			return subscription;
+		}
+
+		return UserSubscription.createDefault(user);
 	}
 }

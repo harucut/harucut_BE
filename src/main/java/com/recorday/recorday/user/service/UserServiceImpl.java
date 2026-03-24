@@ -3,6 +3,7 @@ package com.recorday.recorday.user.service;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.recorday.recorday.subscription.entity.UserSubscription;
 import com.recorday.recorday.storage.service.FileStorageService;
 import com.recorday.recorday.user.config.PlanPricingProperties;
 import com.recorday.recorday.user.dto.response.UserInfoResponse;
@@ -23,9 +24,10 @@ public class UserServiceImpl implements UserService {
 	public UserInfoResponse getUserInfo(Long userId) {
 
 		User user = userReader.getUserById(userId);
+		UserSubscription subscription = resolveSubscription(user);
 
 		String profilePresignedUrl = fileStorageService.generatePresignedGetUrl(user.getProfileUrl());
-		int monthlyPrice = planPricingProperties.getPrice(user.getPlanTier());
+		int monthlyPrice = planPricingProperties.getPrice(subscription.getPlanTier());
 
 		return new UserInfoResponse(
 			user.getId(),
@@ -33,7 +35,7 @@ public class UserServiceImpl implements UserService {
 			user.getUsername(),
 			profilePresignedUrl,
 			user.getProvider().name(),
-			user.getPlanTier().name(),
+			subscription.getPlanTier().name(),
 			monthlyPrice
 		);
 	}
@@ -54,5 +56,14 @@ public class UserServiceImpl implements UserService {
 		User user = userReader.getUserById(userId);
 
 		user.changeProfileUrl(s3Key);
+	}
+
+	private UserSubscription resolveSubscription(User user) {
+		UserSubscription subscription = user.getSubscription();
+		if (subscription != null) {
+			return subscription;
+		}
+
+		return UserSubscription.createDefault(user);
 	}
 }

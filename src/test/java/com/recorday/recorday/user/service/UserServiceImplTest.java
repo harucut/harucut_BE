@@ -12,6 +12,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.recorday.recorday.auth.oauth2.enums.Provider;
 import com.recorday.recorday.storage.service.FileStorageService;
+import com.recorday.recorday.subscription.entity.UserSubscription;
 import com.recorday.recorday.user.config.PlanPricingProperties;
 import com.recorday.recorday.user.dto.response.UserInfoResponse;
 import com.recorday.recorday.user.entity.User;
@@ -46,7 +47,7 @@ class UserServiceImplTest {
 
 		given(userReader.getUserById(userId)).willReturn(user);
 		given(fileStorageService.generatePresignedGetUrl(profileUrl)).willReturn(presignedUrl);
-		given(planPricingProperties.getPrice(user.getPlanTier())).willReturn(0);
+		given(planPricingProperties.getPrice(PlanTier.BASIC)).willReturn(0);
 
 		// when
 		UserInfoResponse response = userService.getUserInfo(userId);
@@ -62,7 +63,7 @@ class UserServiceImplTest {
 
 		then(userReader).should(times(1)).getUserById(userId);
 		then(fileStorageService).should(times(1)).generatePresignedGetUrl(profileUrl);
-		then(planPricingProperties).should(times(1)).getPrice(user.getPlanTier());
+		then(planPricingProperties).should(times(1)).getPrice(PlanTier.BASIC);
 	}
 
 	@Test
@@ -104,7 +105,7 @@ class UserServiceImplTest {
 	}
 
 	private User createUser(String email, String profileUrl) {
-		return User.builder()
+		User user = User.builder()
 			.id(1L)
 			.publicId("user-public-id-123")
 			.email(email)
@@ -115,5 +116,10 @@ class UserServiceImplTest {
 			.userRole(UserRole.ROLE_USER)
 			.userStatus(UserStatus.ACTIVE)
 			.build();
+		user.attachSubscription(UserSubscription.builder()
+			.user(user)
+			.planTier(PlanTier.BASIC)
+			.build());
+		return user;
 	}
 }
