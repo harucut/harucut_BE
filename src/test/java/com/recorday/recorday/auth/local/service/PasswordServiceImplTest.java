@@ -59,7 +59,7 @@ class PasswordServiceImplTest {
 
 		given(stringRedisTemplate.opsForValue()).willReturn(valueOperations);
 		given(valueOperations.get(key)).willReturn(email);
-		given(userReader.getUserByEmailAndProvider(email, Provider.RECORDAY)).willReturn(user);
+		given(userReader.getUserByEmailAndProvider(email, Provider.HARUCUT)).willReturn(user);
 		given(passwordEncoder.encode(newPassword)).willReturn(encodedPassword);
 		given(stringRedisTemplate.delete(key)).willReturn(true);
 
@@ -208,7 +208,7 @@ class PasswordServiceImplTest {
 			.username("testUser")
 			.password("encoded-password")
 			.profileUrl("http://profile.url")
-			.provider(Provider.RECORDAY)
+			.provider(Provider.HARUCUT)
 			.userRole(UserRole.ROLE_USER)
 			.userStatus(UserStatus.ACTIVE)
 			.build();
@@ -222,7 +222,7 @@ class PasswordServiceImplTest {
 			.username("testUser")
 			.password(password)
 			.profileUrl("http://profile.url")
-			.provider(Provider.RECORDAY)
+			.provider(Provider.HARUCUT)
 			.userRole(UserRole.ROLE_USER)
 			.userStatus(UserStatus.ACTIVE)
 			.build();

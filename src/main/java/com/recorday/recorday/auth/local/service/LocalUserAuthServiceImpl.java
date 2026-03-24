@@ -42,7 +42,7 @@ public class LocalUserAuthServiceImpl implements LocalUserAuthService{
 		stringRedisTemplate.delete(key);
 
 		User user = User.builder()
-			.provider(Provider.RECORDAY)
+			.provider(Provider.HARUCUT)
 			.userRole(UserRole.ROLE_USER)
 			.email(request.email())
 			.username(request.username())
@@ -57,6 +57,6 @@ public class LocalUserAuthServiceImpl implements LocalUserAuthService{
 	@Override
 	@Transactional(readOnly = true)
 	public boolean isExistLocal(String email) {
-		return userRepository.existsByProviderAndEmail(Provider.RECORDAY, email);
+		return userRepository.existsByProviderAndEmail(Provider.HARUCUT, email);
 	}
 }

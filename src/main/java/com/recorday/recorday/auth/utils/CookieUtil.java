@@ -14,8 +14,8 @@ public class CookieUtil {
 			.secure(true)
 			.path("/")
 			.maxAge(Duration.ofMillis(maxAgeMillis))
-			.sameSite("None")
-			// .domain("harucut.com")
+			.sameSite("Lax")
+			.domain("harucut.com")
 			.build();
 	}
 
@@ -25,8 +25,8 @@ public class CookieUtil {
 			.secure(true)
 			.path("/")
 			.maxAge(0)
-			.sameSite("None")
-			// .domain("harucut.com")
+			.sameSite("Lax")
+			.domain("harucut.com")
 			.build();
 	}
 }

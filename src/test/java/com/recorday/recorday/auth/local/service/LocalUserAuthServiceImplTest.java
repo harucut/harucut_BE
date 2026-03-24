@@ -57,7 +57,7 @@ class LocalUserAuthServiceImplTest {
 	@DisplayName("이미 등록된 이메일로 회원가입 시 EMAIL_DUPLICATED 예외가 발생한다")
 	void register_withDuplicateEmail_throwsEmailDuplicatedException() {
 		// given
-		given(userRepository.existsByProviderAndEmail(Provider.RECORDAY, localRegisterRequest.email()))
+		given(userRepository.existsByProviderAndEmail(Provider.HARUCUT, localRegisterRequest.email()))
 			.willReturn(true);
 
 		// when & then
@@ -69,7 +69,7 @@ class LocalUserAuthServiceImplTest {
 			});
 
 		then(userRepository).should(times(1))
-			.existsByProviderAndEmail(Provider.RECORDAY, localRegisterRequest.email());
+			.existsByProviderAndEmail(Provider.HARUCUT, localRegisterRequest.email());
 		then(userRepository).should(never()).save(any(User.class));
 	}
 
@@ -79,7 +79,7 @@ class LocalUserAuthServiceImplTest {
 		// given
 		String key = "REGISTER:EMAIL:" + localRegisterRequest.email();
 
-		given(userRepository.existsByProviderAndEmail(Provider.RECORDAY, localRegisterRequest.email()))
+		given(userRepository.existsByProviderAndEmail(Provider.HARUCUT, localRegisterRequest.email()))
 			.willReturn(false);
 		given(stringRedisTemplate.opsForValue()).willReturn(valueOperations);
 		given(valueOperations.get(key)).willReturn("verified");
@@ -94,13 +94,13 @@ class LocalUserAuthServiceImplTest {
 
 		// then
 		then(userRepository).should(times(1))
-			.existsByProviderAndEmail(Provider.RECORDAY, localRegisterRequest.email());
+			.existsByProviderAndEmail(Provider.HARUCUT, localRegisterRequest.email());
 
 		ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
 		then(userRepository).should(times(1)).save(userCaptor.capture());
 
 		User savedUser = userCaptor.getValue();
-		assertThat(savedUser.getProvider()).isEqualTo(Provider.RECORDAY);
+		assertThat(savedUser.getProvider()).isEqualTo(Provider.HARUCUT);
 		assertThat(savedUser.getUserRole()).isEqualTo(UserRole.ROLE_USER);
 		assertThat(savedUser.getEmail()).isEqualTo(localRegisterRequest.email());
 		assertThat(savedUser.getUsername()).isEqualTo(localRegisterRequest.username());
@@ -115,7 +115,7 @@ class LocalUserAuthServiceImplTest {
 		// given
 		String key = "REGISTER:EMAIL:" + localRegisterRequest.email();
 
-		given(userRepository.existsByProviderAndEmail(Provider.RECORDAY, localRegisterRequest.email()))
+		given(userRepository.existsByProviderAndEmail(Provider.HARUCUT, localRegisterRequest.email()))
 			.willReturn(false);
 		given(stringRedisTemplate.opsForValue()).willReturn(valueOperations);
 		given(valueOperations.get(key)).willReturn(null);

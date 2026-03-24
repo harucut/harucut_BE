@@ -26,6 +26,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import com.recorday.recorday.auth.jwt.filter.JwtAuthenticationFilter;
 import com.recorday.recorday.auth.jwt.service.JwtTokenService;
+import com.recorday.recorday.auth.jwt.service.RefreshTokenService;
 import com.recorday.recorday.auth.oauth2.service.CustomOAuth2UserService;
 import com.recorday.recorday.auth.oauth2.service.CustomOidcUserService;
 import com.recorday.recorday.auth.service.UserPrincipalLoader;
@@ -46,6 +47,7 @@ public class SecurityConfig {
 		"/api/harucut/login",
 		"/api/harucut/register",
 		"/api/harucut/reissue",
+		"/api/harucut/logout",
 		"/api/harucut/reset/password",
 		"/api/harucut/reset/password/verification",
 		"/api/oauth2/**",
@@ -64,6 +66,7 @@ public class SecurityConfig {
 	private final UserDetailsService userDetailsService;
 	private final UserPrincipalLoader userPrincipalLoader;
 	private final JwtTokenService jwtTokenService;
+	private final RefreshTokenService refreshTokenService;
 	private final CustomOAuth2UserService customOAuth2UserService;
 	private final CustomOidcUserService customOidcUserService;
 	private final AuthenticationSuccessHandler customOAuth2SuccessHandler;
@@ -109,7 +112,8 @@ public class SecurityConfig {
 
 		http
 			.addFilterBefore(
-				new JwtAuthenticationFilter(jwtTokenService, userPrincipalLoader, customAuthenticationEntryPoint),
+				new JwtAuthenticationFilter(jwtTokenService, refreshTokenService, userPrincipalLoader,
+					customAuthenticationEntryPoint),
 				UsernamePasswordAuthenticationFilter.class
 			);
 

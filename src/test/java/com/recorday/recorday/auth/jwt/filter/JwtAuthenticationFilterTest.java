@@ -17,11 +17,14 @@ import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.AuthenticationEntryPoint;
+import org.springframework.http.ResponseCookie;
 
 import com.recorday.recorday.auth.entity.CustomUserPrincipal;
 import com.recorday.recorday.auth.exception.AuthErrorCode;
 import com.recorday.recorday.auth.exception.CustomAuthenticationException;
+import com.recorday.recorday.auth.jwt.dto.AuthTokenCookies;
 import com.recorday.recorday.auth.jwt.service.JwtTokenService;
+import com.recorday.recorday.auth.jwt.service.RefreshTokenService;
 import com.recorday.recorday.auth.service.UserPrincipalLoader;
 
 import jakarta.servlet.FilterChain;
@@ -38,6 +41,9 @@ class JwtAuthenticationFilterTest {
 	private UserPrincipalLoader userPrincipalLoader;
 
 	@Mock
+	private RefreshTokenService refreshTokenService;
+
+	@Mock
 	private AuthenticationEntryPoint authenticationEntryPoint;
 
 	@Mock
@@ -50,7 +56,8 @@ class JwtAuthenticationFilterTest {
 
 	@BeforeEach
 	void setUp() {
-		jwtAuthenticationFilter = new JwtAuthenticationFilter(jwtTokenService, userPrincipalLoader, authenticationEntryPoint);
+		jwtAuthenticationFilter = new JwtAuthenticationFilter(jwtTokenService, refreshTokenService, userPrincipalLoader,
+			authenticationEntryPoint);
 		SecurityContextHolder.clearContext();
 	}
 
@@ -105,6 +112,7 @@ class JwtAuthenticationFilterTest {
 
 		// then
 		then(jwtTokenService).shouldHaveNoInteractions();
+		then(refreshTokenService).shouldHaveNoInteractions();
 		then(userPrincipalLoader).shouldHaveNoInteractions();
 		then(filterChain).should().doFilter(request, response);
 		assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
@@ -127,11 +135,53 @@ class JwtAuthenticationFilterTest {
 
 		// then
 		then(jwtTokenService).should().validateToken(invalidToken);
+		then(refreshTokenService).shouldHaveNoInteractions();
 		then(jwtTokenService).should(never()).getUserPublicId(anyString());
 		then(userPrincipalLoader).shouldHaveNoInteractions();
 		then(filterChain).should(never()).doFilter(request, response);
 		then(authenticationEntryPoint).should().commence(eq(request), eq(response), any(CustomAuthenticationException.class));
 		assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+	}
+
+	@Test
+	@DisplayName("accessToken이 무효여도 refreshToken이 유효하면 자동 재발급 후 요청을 계속 처리한다")
+	void doFilter_invalidAccessToken_validRefreshToken_reissuesAndContinues() throws ServletException, IOException {
+		// given
+		String invalidAccessToken = "invalid-access-token";
+		String oldRefreshToken = "old-refresh-token";
+		String newAccessToken = "new-access-token";
+		String newRefreshToken = "new-refresh-token";
+		String publicId = "public-id";
+
+		MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/test");
+		request.setCookies(
+			new Cookie("accessToken", invalidAccessToken),
+			new Cookie("refreshToken", oldRefreshToken)
+		);
+		MockHttpServletResponse response = new MockHttpServletResponse();
+
+		willThrow(new CustomAuthenticationException(AuthErrorCode.INVALID_TOKEN))
+			.given(jwtTokenService).validateToken(invalidAccessToken);
+
+		ResponseCookie accessCookie = ResponseCookie.from("accessToken", newAccessToken).build();
+		ResponseCookie refreshCookie = ResponseCookie.from("refreshToken", newRefreshToken).build();
+		AuthTokenCookies reissuedCookies = new AuthTokenCookies(accessCookie, refreshCookie);
+
+		given(refreshTokenService.reissue(oldRefreshToken)).willReturn(reissuedCookies);
+		given(jwtTokenService.getUserPublicId(newAccessToken)).willReturn(publicId);
+		given(userPrincipalLoader.loadUserByPublicId(publicId)).willReturn(customUserPrincipal);
+		given(customUserPrincipal.getAuthorities()).willReturn(Collections.emptyList());
+
+		// when
+		jwtAuthenticationFilter.doFilterInternal(request, response, filterChain);
+
+		// then
+		then(refreshTokenService).should().reissue(oldRefreshToken);
+		then(jwtTokenService).should().validateToken(newAccessToken);
+		then(jwtTokenService).should().getUserPublicId(newAccessToken);
+		then(filterChain).should().doFilter(request, response);
+		then(authenticationEntryPoint).should(never()).commence(any(), any(), any());
+		assertThat(SecurityContextHolder.getContext().getAuthentication()).isNotNull();
 	}
 
 	@Test
@@ -185,5 +235,40 @@ class JwtAuthenticationFilterTest {
 		then(userPrincipalLoader).shouldHaveNoInteractions();
 		then(filterChain).should().doFilter(request, response);
 		assertThat(SecurityContextHolder.getContext().getAuthentication()).isSameAs(existingAuth);
+	}
+
+	@Test
+	@DisplayName("accessToken이 없고 refreshToken이 유효하면 자동 재발급 후 인증을 설정한다")
+	void doFilter_noAccessToken_validRefreshToken_reissuesAndAuthenticates() throws ServletException, IOException {
+		// given
+		String oldRefreshToken = "old-refresh-token";
+		String newAccessToken = "new-access-token";
+		String newRefreshToken = "new-refresh-token";
+		String publicId = "public-id";
+
+		MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/test");
+		request.setCookies(new Cookie("refreshToken", oldRefreshToken));
+		MockHttpServletResponse response = new MockHttpServletResponse();
+
+		ResponseCookie accessCookie = ResponseCookie.from("accessToken", newAccessToken).build();
+		ResponseCookie refreshCookie = ResponseCookie.from("refreshToken", newRefreshToken).build();
+		AuthTokenCookies reissuedCookies = new AuthTokenCookies(accessCookie, refreshCookie);
+
+		given(refreshTokenService.reissue(oldRefreshToken)).willReturn(reissuedCookies);
+		given(jwtTokenService.getUserPublicId(newAccessToken)).willReturn(publicId);
+		given(userPrincipalLoader.loadUserByPublicId(publicId)).willReturn(customUserPrincipal);
+		given(customUserPrincipal.getAuthorities()).willReturn(Collections.emptyList());
+
+		// when
+		jwtAuthenticationFilter.doFilterInternal(request, response, filterChain);
+
+		// then
+		then(refreshTokenService).should().reissue(oldRefreshToken);
+		then(jwtTokenService).should().validateToken(newAccessToken);
+		then(jwtTokenService).should().getUserPublicId(newAccessToken);
+		then(userPrincipalLoader).should().loadUserByPublicId(publicId);
+		then(filterChain).should().doFilter(request, response);
+		assertThat(response.getHeaders("Set-Cookie")).isNotEmpty();
+		assertThat(SecurityContextHolder.getContext().getAuthentication()).isNotNull();
 	}
 }

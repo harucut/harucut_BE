@@ -1,7 +1,7 @@
 package com.recorday.recorday.auth.oauth2.enums;
 
 public enum Provider {
-	GOOGLE, KAKAO, NAVER, RECORDAY;
+	GOOGLE, KAKAO, NAVER, HARUCUT;
 
 	public static Provider from(String registrationId) {
 		if (registrationId == null) {
@@ -9,7 +9,7 @@ public enum Provider {
 		}
 
 		return switch (registrationId.toLowerCase()) {
-			case "recorday" -> RECORDAY;
+			case "harucut" -> HARUCUT;
 			case "google" -> GOOGLE;
 			case "kakao" -> KAKAO;
 			case "naver" -> NAVER;

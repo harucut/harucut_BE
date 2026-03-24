@@ -44,7 +44,7 @@ public class PasswordServiceImpl implements PasswordService {
 			throw new BusinessException(AuthErrorCode.INVALID_TOKEN);
 		}
 
-		User user = userReader.getUserByEmailAndProvider(email, Provider.RECORDAY);
+		User user = userReader.getUserByEmailAndProvider(email, Provider.HARUCUT);
 
 		user.changePassword(passwordEncoder.encode(newPassword));
 

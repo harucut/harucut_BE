@@ -41,7 +41,7 @@ class CustomUserDetailsServiceTest {
 		String email = "test@example.com";
 		User user = createActiveUser(email);
 
-		given(userRepository.findByProviderAndEmail(Provider.RECORDAY, email))
+		given(userRepository.findByProviderAndEmail(Provider.HARUCUT, email))
 			.willReturn(Optional.of(user));
 
 		// when
@@ -52,7 +52,7 @@ class CustomUserDetailsServiceTest {
 		assertThat(result.getEmail()).isEqualTo(email);
 		assertThat(result.getId()).isEqualTo(user.getId());
 
-		then(userRepository).should(times(1)).findByProviderAndEmail(Provider.RECORDAY, email);
+		then(userRepository).should(times(1)).findByProviderAndEmail(Provider.HARUCUT, email);
 	}
 
 	@Test
@@ -61,7 +61,7 @@ class CustomUserDetailsServiceTest {
 		// given
 		String email = "notfound@example.com";
 
-		given(userRepository.findByProviderAndEmail(Provider.RECORDAY, email))
+		given(userRepository.findByProviderAndEmail(Provider.HARUCUT, email))
 			.willReturn(Optional.empty());
 
 		// when & then
@@ -72,7 +72,7 @@ class CustomUserDetailsServiceTest {
 				assertThat(authException.getErrorCode()).isEqualTo(AuthErrorCode.NOT_EXIST_USER);
 			});
 
-		then(userRepository).should(times(1)).findByProviderAndEmail(Provider.RECORDAY, email);
+		then(userRepository).should(times(1)).findByProviderAndEmail(Provider.HARUCUT, email);
 	}
 
 	@Test
@@ -96,21 +96,21 @@ class CustomUserDetailsServiceTest {
 	}
 
 	@Test
-	@DisplayName("탈퇴 요청된 사용자 조회 시 DELETED_REQUEST_USER 예외 발생")
-	void loadUserByPublicId_탈퇴요청된_사용자_예외발생() {
+	@DisplayName("탈퇴 요청된 사용자 조회 시 CustomUserPrincipal 반환")
+	void loadUserByPublicId_탈퇴요청된_사용자_조회_성공() {
 		// given
 		String publicId = "deleted-user-public-id";
 		User deletedRequestUser = createDeletedRequestedUser("deleted@example.com");
 
 		given(userReader.getUserByPublicId(publicId)).willReturn(deletedRequestUser);
 
-		// when & then
-		assertThatThrownBy(() -> customUserDetailsService.loadUserByPublicId(publicId))
-			.isInstanceOf(CustomAuthenticationException.class)
-			.satisfies(exception -> {
-				CustomAuthenticationException authException = (CustomAuthenticationException) exception;
-				assertThat(authException.getErrorCode()).isEqualTo(AuthErrorCode.DELETED_REQUEST_USER);
-			});
+		// when
+		CustomUserPrincipal result = customUserDetailsService.loadUserByPublicId(publicId);
+
+		// then
+		assertThat(result).isNotNull();
+		assertThat(result.getPublicId()).isEqualTo(publicId);
+		assertThat(result.getStatus()).isEqualTo(UserStatus.DELETED_REQUESTED);
 
 		then(userReader).should(times(1)).getUserByPublicId(publicId);
 	}
@@ -123,7 +123,7 @@ class CustomUserDetailsServiceTest {
 			.username("testUser")
 			.password("encoded-password")
 			.profileUrl("http://profile.url")
-			.provider(Provider.RECORDAY)
+			.provider(Provider.HARUCUT)
 			.userRole(UserRole.ROLE_USER)
 			.userStatus(UserStatus.ACTIVE)
 			.build();
@@ -137,7 +137,7 @@ class CustomUserDetailsServiceTest {
 			.username("deletedUser")
 			.password("encoded-password")
 			.profileUrl("http://profile.url")
-			.provider(Provider.RECORDAY)
+			.provider(Provider.HARUCUT)
 			.userRole(UserRole.ROLE_USER)
 			.userStatus(UserStatus.DELETED_REQUESTED)
 			.build();
