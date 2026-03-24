@@ -8,7 +8,9 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.RestTemplate;
 
 import com.recorday.recorday.media.dto.AwsSnsMessage;
+import com.recorday.recorday.media.dto.response.UserMediaResponse;
 import com.recorday.recorday.media.service.TranscodingService;
+import com.recorday.recorday.media.service.UserMediaService;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,6 +28,7 @@ public class WebhookController {
 
 	private final ObjectMapper objectMapper;
 	private final TranscodingService transcodingService;
+	private final UserMediaService userMediaService;
 
 	@PostMapping
 	public void handleMediaConvertNotification(@RequestBody String rawBody) {
@@ -54,20 +57,33 @@ public class WebhookController {
 
 		if ("COMPLETE".equals(state)) {
 			JsonNode userMetadata = detail.path("userMetadata");
+			String userPublicId = userMetadata.path("userPublicId").asText(null);
+			String originalFileName = userMetadata.path("originalFileName").asText(null);
 			String outputS3Path = detail
 				.path("outputGroupDetails").path(0)
 				.path("outputDetails").path(0)
-				.path("outputFilePaths").path(0).asText("no-path");
+				.path("outputFilePaths").path(0).asText(null);
 
 			log.info("✅ 변환 완료! JobID: {}, Path: {}", jobId, outputS3Path);
 
-			transcodingService.completeJob(jobId, true, "Success");
+			try {
+				UserMediaResponse mediaResponse = userMediaService.saveTranscodedVideo(
+					userPublicId,
+					originalFileName,
+					outputS3Path,
+					jobId
+				);
+				transcodingService.completeJob(jobId, mediaResponse);
+			} catch (Exception e) {
+				log.error("변환 완료 후 DB 저장 실패. jobId={}, error={}", jobId, e.getMessage(), e);
+				transcodingService.failJob(jobId, "Failed to persist transcoded video");
+			}
 
 		} else if ("ERROR".equals(state)) {
 			String errorMessage = detail.path("errorMessage").asText("Unknown Error");
 			log.error("❌ 변환 실패 JobID: {}", jobId);
 
-			transcodingService.completeJob(jobId, false, errorMessage);
+			transcodingService.failJob(jobId, errorMessage);
 		}
 	}
 }

@@ -12,8 +12,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.recorday.recorday.auth.oauth2.enums.Provider;
 import com.recorday.recorday.storage.service.FileStorageService;
+import com.recorday.recorday.user.config.PlanPricingProperties;
 import com.recorday.recorday.user.dto.response.UserInfoResponse;
 import com.recorday.recorday.user.entity.User;
+import com.recorday.recorday.user.enums.PlanTier;
 import com.recorday.recorday.user.enums.UserRole;
 import com.recorday.recorday.user.enums.UserStatus;
 import com.recorday.recorday.util.user.UserReader;
@@ -26,6 +28,9 @@ class UserServiceImplTest {
 
 	@Mock
 	private FileStorageService fileStorageService;
+
+	@Mock
+	private PlanPricingProperties planPricingProperties;
 
 	@InjectMocks
 	private UserServiceImpl userService;
@@ -41,6 +46,7 @@ class UserServiceImplTest {
 
 		given(userReader.getUserById(userId)).willReturn(user);
 		given(fileStorageService.generatePresignedGetUrl(profileUrl)).willReturn(presignedUrl);
+		given(planPricingProperties.getPrice(user.getPlanTier())).willReturn(0);
 
 		// when
 		UserInfoResponse response = userService.getUserInfo(userId);
@@ -51,9 +57,12 @@ class UserServiceImplTest {
 		assertThat(response.email()).isEqualTo(user.getEmail());
 		assertThat(response.username()).isEqualTo(user.getUsername());
 		assertThat(response.profileUrl()).isEqualTo(presignedUrl);
+		assertThat(response.planTier()).isEqualTo(PlanTier.BASIC.name());
+		assertThat(response.monthlyPrice()).isEqualTo(0);
 
 		then(userReader).should(times(1)).getUserById(userId);
 		then(fileStorageService).should(times(1)).generatePresignedGetUrl(profileUrl);
+		then(planPricingProperties).should(times(1)).getPrice(user.getPlanTier());
 	}
 
 	@Test
@@ -102,7 +111,7 @@ class UserServiceImplTest {
 			.username("testUser")
 			.password("encoded-password")
 			.profileUrl(profileUrl)
-			.provider(Provider.RECORDAY)
+			.provider(Provider.HARUCUT)
 			.userRole(UserRole.ROLE_USER)
 			.userStatus(UserStatus.ACTIVE)
 			.build();

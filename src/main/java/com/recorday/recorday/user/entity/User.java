@@ -1,6 +1,7 @@
 package com.recorday.recorday.user.entity;
 
 import java.time.LocalDateTime;
+import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -8,6 +9,7 @@ import com.recorday.recorday.auth.oauth2.enums.Provider;
 import com.recorday.recorday.frame.entity.Frame;
 import com.recorday.recorday.user.enums.UserRole;
 import com.recorday.recorday.user.enums.UserStatus;
+import com.recorday.recorday.user.enums.PlanTier;
 import com.recorday.recorday.util.entity.BasePublicIdEntity;
 
 import jakarta.persistence.CascadeType;
@@ -85,6 +87,23 @@ public class User extends BasePublicIdEntity {
 	private LocalDateTime deleteRequestedAt;
 
 	@Builder.Default
+	@Column(name = "plan_tier", nullable = false, length = 16)
+	@Enumerated(EnumType.STRING)
+	private PlanTier planTier = PlanTier.BASIC;
+
+	@Builder.Default
+	@Column(name = "quota_month", nullable = false, length = 7)
+	private String quotaMonth = YearMonth.now().toString();
+
+	@Builder.Default
+	@Column(name = "monthly_video_download_count", nullable = false)
+	private int monthlyVideoDownloadCount = 0;
+
+	@Builder.Default
+	@Column(name = "monthly_frame_create_count", nullable = false)
+	private int monthlyFrameCreateCount = 0;
+
+	@Builder.Default
 	@OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
 	private List<Frame> frames = new ArrayList<>();
 
@@ -135,5 +154,28 @@ public class User extends BasePublicIdEntity {
 
 	public void changeProfileUrl(String profileUrl) {
 		this.profileUrl = profileUrl;
+	}
+
+	public void changePlanTier(PlanTier planTier) {
+		this.planTier = planTier;
+	}
+
+	public void syncQuotaMonth(YearMonth currentMonth) {
+		String target = currentMonth.toString();
+		if (target.equals(this.quotaMonth)) {
+			return;
+		}
+
+		this.quotaMonth = target;
+		this.monthlyVideoDownloadCount = 0;
+		this.monthlyFrameCreateCount = 0;
+	}
+
+	public void increaseMonthlyVideoDownloadCount() {
+		this.monthlyVideoDownloadCount++;
+	}
+
+	public void increaseMonthlyFrameCreateCount() {
+		this.monthlyFrameCreateCount++;
 	}
 }

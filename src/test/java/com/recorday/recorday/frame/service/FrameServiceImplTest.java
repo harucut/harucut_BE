@@ -33,6 +33,7 @@ import com.recorday.recorday.frame.repository.FrameRepository;
 import com.recorday.recorday.user.entity.User;
 import com.recorday.recorday.user.enums.UserRole;
 import com.recorday.recorday.user.enums.UserStatus;
+import com.recorday.recorday.user.service.SubscriptionPolicyService;
 import com.recorday.recorday.util.user.UserReader;
 
 @ExtendWith(MockitoExtension.class)
@@ -49,6 +50,9 @@ class FrameServiceImplTest {
 
 	@Mock
 	private FrameStyleConverter frameStyleConverter;
+
+	@Mock
+	private SubscriptionPolicyService subscriptionPolicyService;
 
 	@InjectMocks
 	private FrameServiceImpl frameService;
@@ -267,7 +271,7 @@ class FrameServiceImplTest {
 			.email(email)
 			.username("tester")
 			.profileUrl("http://profile.url")
-			.provider(Provider.RECORDAY)
+			.provider(Provider.HARUCUT)
 			.userRole(UserRole.ROLE_USER)
 			.userStatus(UserStatus.ACTIVE)
 			.build();

@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.context.request.async.DeferredResult;
 
 import com.recorday.recorday.exception.BusinessException;
+import com.recorday.recorday.media.dto.response.UserMediaResponse;
 import com.recorday.recorday.storage.exception.StorageErrorCode;
 import com.recorday.recorday.util.response.Response;
 
@@ -33,7 +34,7 @@ public class TranscodingService {
 
 	private final MediaConvertClient mediaConvertClient;
 
-	private final Map<String, DeferredResult<ResponseEntity<Response<Void>>>> pendingRequests = new ConcurrentHashMap<>();
+	private final Map<String, DeferredResult<ResponseEntity<Response<UserMediaResponse>>>> pendingRequests = new ConcurrentHashMap<>();
 
 	@Value("${aws.s3.bucket-name}")
 	private String bucketName;
@@ -85,7 +86,10 @@ public class TranscodingService {
 		}
 	}
 
-	public void registerDeferredResult(String jobId, DeferredResult<ResponseEntity<Response<Void>>> deferredResult) {
+	public void registerDeferredResult(
+		String jobId,
+		DeferredResult<ResponseEntity<Response<UserMediaResponse>>> deferredResult
+	) {
 		pendingRequests.put(jobId, deferredResult);
 
 		deferredResult.onCompletion(() -> pendingRequests.remove(jobId));
@@ -95,16 +99,20 @@ public class TranscodingService {
 		});
 	}
 
-	public void completeJob(String jobId, boolean isSuccess, String message) {
-		DeferredResult<ResponseEntity<Response<Void>>> result = pendingRequests.remove(jobId);
+	public void completeJob(String jobId, UserMediaResponse mediaResponse) {
+		DeferredResult<ResponseEntity<Response<UserMediaResponse>>> result = pendingRequests.remove(jobId);
 
 		if (result != null && !result.isSetOrExpired()) {
-			if (isSuccess) {
-				result.setResult(Response.ok().toResponseEntity());
-			} else {
-				result.setErrorResult(new BusinessException(StorageErrorCode.TRANSCODE_FAILED));
-				log.error("Job Failed: {}", message);
-			}
+			result.setResult(Response.ok(mediaResponse).toResponseEntity());
+		}
+	}
+
+	public void failJob(String jobId, String message) {
+		DeferredResult<ResponseEntity<Response<UserMediaResponse>>> result = pendingRequests.remove(jobId);
+
+		if (result != null && !result.isSetOrExpired()) {
+			result.setErrorResult(new BusinessException(StorageErrorCode.TRANSCODE_FAILED));
+			log.error("Job Failed: {}", message);
 		}
 	}
 }

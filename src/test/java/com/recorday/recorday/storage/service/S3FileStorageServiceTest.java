@@ -160,6 +160,45 @@ class S3FileStorageServiceTest {
 	}
 
 	@Test
+	@DisplayName("한글 커스텀 파일명으로 다운로드 URL 생성 시 Content-Disposition에 filename* UTF-8 인코딩이 포함된다")
+	void generatePresignedDownloadUrl_withKoreanFilename_usesRfc5987() {
+		// given
+		String key = "uploads/users/publicId/mp4/test.mp4";
+		String downloadFilename = "한글.mp4";
+		String expected = "https://example.com/" + key;
+
+		SdkHttpRequest httpRequest = SdkHttpRequest.builder()
+			.method(SdkHttpMethod.GET)
+			.uri(URI.create(expected))
+			.build();
+
+		PresignedGetObjectRequest presignedGetObjectRequest =
+			PresignedGetObjectRequest.builder()
+				.httpRequest(httpRequest)
+				.expiration(Instant.now().plus(Duration.ofMinutes(10)))
+				.signedHeaders(Map.of("Host", List.of("example.com")))
+				.isBrowserExecutable(true)
+				.build();
+
+		given(s3Presigner.presignGetObject(any(GetObjectPresignRequest.class)))
+			.willReturn(presignedGetObjectRequest);
+
+		// when
+		String url = fileStorageService.generatePresignedDownloadUrl(key, downloadFilename);
+
+		// then
+		assertThat(url).isEqualTo(expected);
+
+		ArgumentCaptor<GetObjectPresignRequest> captor = ArgumentCaptor.forClass(GetObjectPresignRequest.class);
+		then(s3Presigner).should().presignGetObject(captor.capture());
+
+		String contentDisposition = captor.getValue().getObjectRequest().responseContentDisposition();
+		assertThat(contentDisposition).contains("attachment;");
+		assertThat(contentDisposition).contains("filename=\"__.mp4\"");
+		assertThat(contentDisposition).contains("filename*=UTF-8''%ED%95%9C%EA%B8%80.mp4");
+	}
+
+	@Test
 	@DisplayName("업로드용 presigned URL을 생성하고, key와 URL을 함께 반환한다")
 	void generatePresignedUploadUrl() {
 		// given

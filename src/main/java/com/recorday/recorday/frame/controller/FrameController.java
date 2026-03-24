@@ -19,8 +19,12 @@ import com.recorday.recorday.frame.dto.response.FrameResponse;
 import com.recorday.recorday.frame.service.FrameService;
 import com.recorday.recorday.util.response.Response;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 
+@Tag(name = "Frame", description = "프레임 생성/조회/수정/삭제 API")
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/auth/user")
@@ -28,10 +32,11 @@ public class FrameController {
 
 	private final FrameService frameService;
 
+	@Operation(summary = "프레임 생성", description = "사용자 프레임을 생성합니다.")
 	@PostMapping("/frame")
 	public ResponseEntity<Response<Void>> createFrame(
 		@RequestBody FrameCreateRequest request,
-		@AuthenticationPrincipal CustomUserPrincipal principal
+		@Parameter(hidden = true) @AuthenticationPrincipal CustomUserPrincipal principal
 	) {
 
 		frameService.createFrame(principal.getId(), request);
@@ -39,39 +44,43 @@ public class FrameController {
 		return Response.ok().toResponseEntity();
 	}
 
+	@Operation(summary = "내 프레임 목록 조회", description = "현재 로그인한 사용자의 프레임 목록을 조회합니다.")
 	@GetMapping("/frame")
 	public ResponseEntity<Response<List<FrameResponse>>> getMyFrames(
-		@AuthenticationPrincipal CustomUserPrincipal principal
+		@Parameter(hidden = true) @AuthenticationPrincipal CustomUserPrincipal principal
 	) {
 		List<FrameResponse> response = frameService.getMyFrame(principal.getId());
 
 		return Response.ok(response).toResponseEntity();
 	}
 
+	@Operation(summary = "프레임 단건 조회", description = "프레임 ID로 단건 조회합니다.")
 	@GetMapping("/frame/{frameId}")
 	public ResponseEntity<Response<FrameResponse>> getFrame(
-		@PathVariable Long frameId,
-		@AuthenticationPrincipal CustomUserPrincipal principal
+		@Parameter(description = "프레임 ID", required = true) @PathVariable Long frameId,
+		@Parameter(hidden = true) @AuthenticationPrincipal CustomUserPrincipal principal
 	) {
 		FrameResponse response = frameService.getFrame(frameId, principal.getId());
 
 		return Response.ok(response).toResponseEntity();
 	}
 
+	@Operation(summary = "프레임 삭제", description = "프레임 ID로 프레임을 삭제합니다.")
 	@DeleteMapping("/frame/{frameId}")
 	public ResponseEntity<Response<Void>> deleteFrame(
-		@PathVariable Long frameId,
-		@AuthenticationPrincipal CustomUserPrincipal principal
+		@Parameter(description = "프레임 ID", required = true) @PathVariable Long frameId,
+		@Parameter(hidden = true) @AuthenticationPrincipal CustomUserPrincipal principal
 	) {
 		frameService.deleteFrame(principal.getId(), frameId);
 		return Response.ok().toResponseEntity();
 	}
 
+	@Operation(summary = "프레임 수정", description = "프레임 ID로 기존 프레임을 수정합니다.")
 	@PutMapping("/frame/{frameId}")
 	public ResponseEntity<Response<Void>> updateFrame(
-		@PathVariable Long frameId,
+		@Parameter(description = "프레임 ID", required = true) @PathVariable Long frameId,
 		@RequestBody FrameCreateRequest request,
-		@AuthenticationPrincipal CustomUserPrincipal principal
+		@Parameter(hidden = true) @AuthenticationPrincipal CustomUserPrincipal principal
 	) {
 		frameService.updateFrame(principal.getId(), frameId, request);
 		return Response.ok().toResponseEntity();

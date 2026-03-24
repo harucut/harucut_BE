@@ -4,6 +4,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.recorday.recorday.storage.service.FileStorageService;
+import com.recorday.recorday.user.config.PlanPricingProperties;
 import com.recorday.recorday.user.dto.response.UserInfoResponse;
 import com.recorday.recorday.user.entity.User;
 import com.recorday.recorday.util.user.UserReader;
@@ -16,6 +17,7 @@ public class UserServiceImpl implements UserService {
 
 	private final UserReader userReader;
 	private final FileStorageService fileStorageService;
+	private final PlanPricingProperties planPricingProperties;
 
 	@Override
 	public UserInfoResponse getUserInfo(Long userId) {
@@ -23,8 +25,17 @@ public class UserServiceImpl implements UserService {
 		User user = userReader.getUserById(userId);
 
 		String profilePresignedUrl = fileStorageService.generatePresignedGetUrl(user.getProfileUrl());
+		int monthlyPrice = planPricingProperties.getPrice(user.getPlanTier());
 
-		return new UserInfoResponse(user.getId(), user.getEmail(), user.getUsername(), profilePresignedUrl);
+		return new UserInfoResponse(
+			user.getId(),
+			user.getEmail(),
+			user.getUsername(),
+			profilePresignedUrl,
+			user.getProvider().name(),
+			user.getPlanTier().name(),
+			monthlyPrice
+		);
 	}
 
 	@Override
