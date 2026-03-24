@@ -196,6 +196,7 @@ class S3FileStorageServiceTest {
 		assertThat(contentDisposition).contains("attachment;");
 		assertThat(contentDisposition).contains("filename=\"__.mp4\"");
 		assertThat(contentDisposition).contains("filename*=UTF-8''%ED%95%9C%EA%B8%80.mp4");
+		assertThat(captor.getValue().getObjectRequest().responseContentType()).isEqualTo("application/octet-stream");
 	}
 
 	@Test

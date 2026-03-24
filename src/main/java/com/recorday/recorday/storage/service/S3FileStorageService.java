@@ -130,6 +130,7 @@ public class S3FileStorageService implements FileStorageService {
 			.bucket(bucketName)
 			.key(key)
 			.responseContentDisposition(contentDisposition)
+			.responseContentType("application/octet-stream")
 			.build();
 
 		GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
@@ -249,7 +250,10 @@ public class S3FileStorageService implements FileStorageService {
 
 		String sanitized = filename
 			.replace("\\", "")
+			.replace("/", "_")
 			.replace("\"", "")
+			.replace(";", "_")
+			.replace(":", "_")
 			.replace("\r", "")
 			.replace("\n", "")
 			.trim();
