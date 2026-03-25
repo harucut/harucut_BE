@@ -2,8 +2,12 @@ package com.recorday.recorday.exception;
 
 import java.util.List;
 
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.HttpMediaTypeNotAcceptableException;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -11,11 +15,14 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.validation.BindException;
+import org.springframework.util.StringUtils;
 
 import com.recorday.recorday.exception.dto.FieldErrorResponse;
 import com.recorday.recorday.util.response.Response;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 
@@ -28,11 +35,11 @@ public class GlobalExceptionHandler {
 	 * - Service/Domain 레이어에서 throw new BusinessException(...) 한 경우
 	 */
 	@ExceptionHandler(BusinessException.class)
-	public ResponseEntity<Response<Void>> handleBusinessException(BusinessException ex) {
+	public ResponseEntity<Response<Void>> handleBusinessException(BusinessException ex, HttpServletRequest request) {
 		log.warn("[BusinessException] code={}, message={}", ex.getErrorCode().getCode(), ex.getMessage());
 
 		Response<Void> response = Response.errorResponse(ex.getErrorCode());
-		return response.toResponseEntity();
+		return negotiatedResponse(response, request);
 	}
 
 	/**
@@ -40,7 +47,10 @@ public class GlobalExceptionHandler {
 	 * - DTO 필드 제약조건 위반 (Bean Validation)
 	 */
 	@ExceptionHandler(MethodArgumentNotValidException.class)
-	public ResponseEntity<Response<List<FieldErrorResponse>>> handleMethodArgumentNotValidException(MethodArgumentNotValidException ex) {
+	public ResponseEntity<Response<List<FieldErrorResponse>>> handleMethodArgumentNotValidException(
+		MethodArgumentNotValidException ex,
+		HttpServletRequest request
+	) {
 		log.warn("[MethodArgumentNotValidException] message={}", ex.getMessage());
 
 		List<FieldErrorResponse> errors = ex.getBindingResult()
@@ -55,7 +65,7 @@ public class GlobalExceptionHandler {
 
 		Response<List<FieldErrorResponse>> response =
 			Response.from(GlobalErrorCode.VALIDATION_FAILED, errors);
-		return response.toResponseEntity();
+		return negotiatedResponse(response, request);
 	}
 
 	/**
@@ -63,11 +73,11 @@ public class GlobalExceptionHandler {
 	 * - 주로 @ModelAttribute, @RequestParam 바인딩 실패
 	 */
 	@ExceptionHandler(BindException.class)
-	public ResponseEntity<Response<Void>> handleBindException(BindException ex) {
+	public ResponseEntity<Response<Void>> handleBindException(BindException ex, HttpServletRequest request) {
 		log.warn("[BindException] message={}", ex.getMessage());
 
 		Response<Void> response = Response.errorResponse(GlobalErrorCode.INVALID_INPUT_VALUE);
-		return response.toResponseEntity();
+		return negotiatedResponse(response, request);
 	}
 
 	/**
@@ -76,12 +86,13 @@ public class GlobalExceptionHandler {
 	 */
 	@ExceptionHandler(MethodArgumentTypeMismatchException.class)
 	public ResponseEntity<Response<Void>> handleMethodArgumentTypeMismatchException(
-		MethodArgumentTypeMismatchException ex
+		MethodArgumentTypeMismatchException ex,
+		HttpServletRequest request
 	) {
 		log.warn("[MethodArgumentTypeMismatchException] message={}", ex.getMessage());
 
 		Response<Void> response = Response.errorResponse(GlobalErrorCode.TYPE_MISMATCH);
-		return response.toResponseEntity();
+		return negotiatedResponse(response, request);
 	}
 
 	/**
@@ -90,12 +101,13 @@ public class GlobalExceptionHandler {
 	 */
 	@ExceptionHandler(MissingServletRequestParameterException.class)
 	public ResponseEntity<Response<Void>> handleMissingServletRequestParameterException(
-		MissingServletRequestParameterException ex
+		MissingServletRequestParameterException ex,
+		HttpServletRequest request
 	) {
 		log.warn("[MissingServletRequestParameterException] message={}", ex.getMessage());
 
 		Response<Void> response = Response.errorResponse(GlobalErrorCode.MISSING_REQUEST_PARAMETER);
-		return response.toResponseEntity();
+		return negotiatedResponse(response, request);
 	}
 
 	/**
@@ -104,12 +116,13 @@ public class GlobalExceptionHandler {
 	 */
 	@ExceptionHandler(HttpRequestMethodNotSupportedException.class)
 	public ResponseEntity<Response<Void>> handleHttpRequestMethodNotSupportedException(
-		HttpRequestMethodNotSupportedException ex
+		HttpRequestMethodNotSupportedException ex,
+		HttpServletRequest request
 	) {
 		log.warn("[HttpRequestMethodNotSupportedException] message={}", ex.getMessage());
 
 		Response<Void> response = Response.errorResponse(GlobalErrorCode.METHOD_NOT_ALLOWED);
-		return response.toResponseEntity();
+		return negotiatedResponse(response, request);
 	}
 
 	/**
@@ -118,12 +131,19 @@ public class GlobalExceptionHandler {
 	 */
 	@ExceptionHandler(HttpMediaTypeNotSupportedException.class)
 	public ResponseEntity<Response<Void>> handleHttpMediaTypeNotSupportedException(
-		HttpMediaTypeNotSupportedException ex
+		HttpMediaTypeNotSupportedException ex,
+		HttpServletRequest request
 	) {
 		log.warn("[HttpMediaTypeNotSupportedException] message={}", ex.getMessage());
 
 		Response<Void> response = Response.errorResponse(GlobalErrorCode.UNSUPPORTED_MEDIA_TYPE);
-		return response.toResponseEntity();
+		return negotiatedResponse(response, request);
+	}
+
+	@ExceptionHandler(HttpMediaTypeNotAcceptableException.class)
+	public ResponseEntity<Void> handleHttpMediaTypeNotAcceptableException(HttpMediaTypeNotAcceptableException ex) {
+		log.warn("[HttpMediaTypeNotAcceptableException] message={}", ex.getMessage());
+		return ResponseEntity.status(HttpStatus.NOT_ACCEPTABLE).build();
 	}
 
 	/**
@@ -131,11 +151,14 @@ public class GlobalExceptionHandler {
 	 * - 예: 잘못된 JSON 문법, enum 매핑 실패, RequestBody 비어있음 등
 	 */
 	@ExceptionHandler(HttpMessageNotReadableException.class)
-	public ResponseEntity<Response<Void>> handleHttpMessageNotReadableException(HttpMessageNotReadableException ex) {
+	public ResponseEntity<Response<Void>> handleHttpMessageNotReadableException(
+		HttpMessageNotReadableException ex,
+		HttpServletRequest request
+	) {
 		log.warn("[HttpMessageNotReadableException] message={}", ex.getMessage());
 
 		Response<Void> response = Response.errorResponse(GlobalErrorCode.JSON_PARSE_ERROR);
-		return response.toResponseEntity();
+		return negotiatedResponse(response, request);
 	}
 
 	/**
@@ -143,11 +166,25 @@ public class GlobalExceptionHandler {
 	 * - 예: @Min, @Max, @Size 등을 PathVariable, RequestParam에 붙였을 때
 	 */
 	@ExceptionHandler(ConstraintViolationException.class)
-	public ResponseEntity<Response<Void>> handleConstraintViolationException(ConstraintViolationException ex) {
+	public ResponseEntity<Response<Void>> handleConstraintViolationException(
+		ConstraintViolationException ex,
+		HttpServletRequest request
+	) {
 		log.warn("[ConstraintViolationException] message={}", ex.getMessage());
 
 		Response<Void> response = Response.errorResponse(GlobalErrorCode.INVALID_INPUT_VALUE);
-		return response.toResponseEntity();
+		return negotiatedResponse(response, request);
+	}
+
+	@ExceptionHandler(NoResourceFoundException.class)
+	public ResponseEntity<Response<Void>> handleNoResourceFoundException(
+		NoResourceFoundException ex,
+		HttpServletRequest request
+	) {
+		log.warn("[NoResourceFoundException] path={}, message={}", ex.getResourcePath(), ex.getMessage());
+
+		Response<Void> response = Response.errorResponse(GlobalErrorCode.NOT_FOUND);
+		return negotiatedResponse(response, request);
 	}
 
 	/**
@@ -155,10 +192,42 @@ public class GlobalExceptionHandler {
 	 * - 예상하지 못한 서버 내부 오류
 	 */
 	@ExceptionHandler(Exception.class)
-	public ResponseEntity<Response<Void>> handleException(Exception ex) {
-		log.error("[Exception] message={}", ex.getMessage());
+	public ResponseEntity<Response<Void>> handleException(Exception ex, HttpServletRequest request) {
+		log.error("[Exception] unexpected error", ex);
 
 		Response<Void> response = Response.errorResponse(GlobalErrorCode.INTERNAL_SERVER_ERROR);
-		return response.toResponseEntity();
+		return negotiatedResponse(response, request);
+	}
+
+	private <T> ResponseEntity<Response<T>> negotiatedResponse(Response<T> response, HttpServletRequest request) {
+		if (acceptsJson(request)) {
+			return response.toResponseEntity();
+		}
+		return ResponseEntity.status(HttpStatus.valueOf(response.getStatus())).build();
+	}
+
+	private boolean acceptsJson(HttpServletRequest request) {
+		String acceptHeader = request.getHeader(HttpHeaders.ACCEPT);
+		if (!StringUtils.hasText(acceptHeader)) {
+			return true;
+		}
+
+		try {
+			List<MediaType> mediaTypes = MediaType.parseMediaTypes(acceptHeader);
+			for (MediaType mediaType : mediaTypes) {
+				if (mediaType.isWildcardType() || mediaType.includes(MediaType.APPLICATION_JSON)) {
+					return true;
+				}
+				String subtype = mediaType.getSubtype();
+				if (subtype != null && subtype.endsWith("+json")) {
+					return true;
+				}
+			}
+		} catch (IllegalArgumentException e) {
+			log.warn("[AcceptHeaderParseError] header={}", acceptHeader);
+			return true;
+		}
+
+		return false;
 	}
 }
