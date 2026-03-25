@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.recorday.recorday.auth.entity.CustomUserPrincipal;
+import com.recorday.recorday.auth.dto.response.AuthStatusResponse;
 import com.recorday.recorday.auth.jwt.dto.TokenResponse;
 import com.recorday.recorday.auth.local.dto.request.EmailAuthVerifyRequest;
 import com.recorday.recorday.auth.local.dto.request.LocalChangePasswordRequest;
@@ -61,6 +62,16 @@ public class LocalAuthController {
 			.header(HttpHeaders.SET_COOKIE, result.cookies().accessTokenCookie().toString())
 			.header(HttpHeaders.SET_COOKIE, result.cookies().refreshTokenCookie().toString())
 			.body(Response.ok(responseBody));
+	}
+
+	@Operation(summary = "인증 상태 조회", description = "현재 로그인된 사용자의 상태를 반환합니다.")
+	@GetMapping("/auth/status")
+	public ResponseEntity<Response<AuthStatusResponse>> status(
+		@Parameter(hidden = true)
+		@AuthenticationPrincipal CustomUserPrincipal principal
+	) {
+		AuthStatusResponse responseBody = new AuthStatusResponse(principal.getStatus());
+		return Response.ok(responseBody).toResponseEntity();
 	}
 
 	@Operation(summary = "이메일 회원가입", description = "새로운 사용자를 등록합니다.")

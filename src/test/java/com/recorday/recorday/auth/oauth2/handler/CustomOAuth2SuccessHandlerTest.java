@@ -45,8 +45,8 @@ class CustomOAuth2SuccessHandlerTest {
 	private CustomOAuth2SuccessHandler successHandler;
 
 	@Test
-	@DisplayName("OAuth2 로그인 성공 시 토큰 쿠키를 설정하고 프론트엔드 홈으로 리다이렉트한다")
-	void onAuthenticationSuccess_setsTokenCookiesAndRedirectsToHome() throws Exception {
+	@DisplayName("OAuth2 로그인 성공 시 토큰 쿠키를 설정하고 프론트엔드 oauth2 콜백으로 리다이렉트한다")
+	void onAuthenticationSuccess_setsTokenCookiesAndRedirectsToCallback() throws Exception {
 		// given
 		String publicId = "user-public-id-123";
 		String accessToken = "test-access-token";
@@ -92,6 +92,6 @@ class CustomOAuth2SuccessHandlerTest {
 		then(cookieUtil).should().createTokenCookie("refreshToken", refreshToken, refreshTokenValidity);
 
 		assertThat(response.getHeader(HttpHeaders.SET_COOKIE)).contains("accessToken");
-		assertThat(response.getRedirectedUrl()).isEqualTo(redirectBaseUrl + "/home");
+		assertThat(response.getRedirectedUrl()).isEqualTo(redirectBaseUrl + "/oauth2/callback");
 	}
 }
