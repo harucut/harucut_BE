@@ -41,7 +41,6 @@ import lombok.experimental.SuperBuilder;
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-// 사용자별 현재 구독 상태
 public class UserSubscription extends BaseEntity {
 
 	@Id
