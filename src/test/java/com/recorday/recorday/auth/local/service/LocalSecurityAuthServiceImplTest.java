@@ -142,7 +142,7 @@ class LocalSecurityAuthServiceImplTest {
 		return User.builder()
 			.id(1L)
 			.publicId("user-public-id")
-			.provider(Provider.RECORDAY)
+			.provider(Provider.HARUCUT)
 			.userRole(UserRole.ROLE_USER)
 			.userStatus(UserStatus.ACTIVE) // 상태 명시
 			.email(email)

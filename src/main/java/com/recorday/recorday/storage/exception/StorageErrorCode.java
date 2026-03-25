@@ -9,6 +9,7 @@ import lombok.Getter;
 @Getter
 public enum StorageErrorCode implements ErrorCode {
 	UNSUPPORTED_UPLOAD_TYPE("STOR-000", HttpStatus.BAD_REQUEST, "UNSUPPORTED_UPLOAD_TYPE"),
+	TRANSCODE_FAILED("STOR-001", HttpStatus.INTERNAL_SERVER_ERROR, "TRANSCODE_FAILED"),
 	;
 
 	private final String code;

@@ -26,10 +26,12 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import com.recorday.recorday.auth.jwt.filter.JwtAuthenticationFilter;
 import com.recorday.recorday.auth.jwt.service.JwtTokenService;
+import com.recorday.recorday.auth.jwt.service.RefreshTokenService;
 import com.recorday.recorday.auth.oauth2.service.CustomOAuth2UserService;
 import com.recorday.recorday.auth.oauth2.service.CustomOidcUserService;
 import com.recorday.recorday.auth.service.UserPrincipalLoader;
 
+import jakarta.servlet.DispatcherType;
 import lombok.RequiredArgsConstructor;
 
 @Configuration
@@ -42,17 +44,20 @@ public class SecurityConfig {
 		"/",
 		"/swagger-ui/**",
 		"/v3/api-docs/**",
-		"/api/recorday/login",
-		"/api/recorday/register",
-		"/api/recorday/reissue",
-		"/api/recorday/reset/password",
-		"/api/recorday/reset/password/verification",
+		"/api/harucut/login",
+		"/api/harucut/register",
+		"/api/harucut/reissue",
+		"/api/harucut/logout",
+		"/api/harucut/reset/password",
+		"/api/harucut/reset/password/verification",
 		"/api/oauth2/**",
-		"/api/email-auth/**"
+		"/api/email-auth/**",
+		"/api/webhooks/**"
 	);
 
 	private static final List<String> CORS_WHITELIST = List.of(
 		"https://harucut.com",
+		"https://www.harucut.com",
 		"http://localhost:5173",
 		"http://localhost:3000",
 		"https://recorday.vercel.app"
@@ -61,6 +66,7 @@ public class SecurityConfig {
 	private final UserDetailsService userDetailsService;
 	private final UserPrincipalLoader userPrincipalLoader;
 	private final JwtTokenService jwtTokenService;
+	private final RefreshTokenService refreshTokenService;
 	private final CustomOAuth2UserService customOAuth2UserService;
 	private final CustomOidcUserService customOidcUserService;
 	private final AuthenticationSuccessHandler customOAuth2SuccessHandler;
@@ -106,7 +112,8 @@ public class SecurityConfig {
 
 		http
 			.addFilterBefore(
-				new JwtAuthenticationFilter(jwtTokenService, userPrincipalLoader, customAuthenticationEntryPoint),
+				new JwtAuthenticationFilter(jwtTokenService, refreshTokenService, userPrincipalLoader,
+					customAuthenticationEntryPoint),
 				UsernamePasswordAuthenticationFilter.class
 			);
 
@@ -117,6 +124,7 @@ public class SecurityConfig {
 
 		http
 			.authorizeHttpRequests(auth -> auth
+				.dispatcherTypeMatchers(DispatcherType.ASYNC).permitAll()
 				.requestMatchers(PathRequest.toStaticResources().atCommonLocations()).permitAll()
 				.requestMatchers("/favicon.ico", "/error", "/default-ui.css").permitAll()
 				.requestMatchers(AUTH_EXCLUDED_PATHS.toArray(String[]::new)).permitAll()

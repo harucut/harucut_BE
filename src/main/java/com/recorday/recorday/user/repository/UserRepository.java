@@ -26,7 +26,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
 	@Query("""
         select u.id
         from User u
-        where u.userStatus = :status
+        where u.userStatus = :userStatus
           and u.deleteRequestedAt <= :cutoffDate
     """)
 	List<Long> findExpiredDeleteRequestedUserIds(

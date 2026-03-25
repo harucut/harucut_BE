@@ -3,6 +3,7 @@ package com.recorday.recorday.frame.service;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -25,6 +26,7 @@ import com.recorday.recorday.frame.enums.BackgroundType;
 import com.recorday.recorday.frame.enums.ComponentType;
 import com.recorday.recorday.frame.repository.FrameRepository;
 import com.recorday.recorday.user.entity.User;
+import com.recorday.recorday.user.service.SubscriptionPolicyService;
 import com.recorday.recorday.util.user.UserReader;
 
 import lombok.RequiredArgsConstructor;
@@ -40,11 +42,13 @@ public class FrameServiceImpl implements FrameService {
 	private final UserReader userReader;
 	private final FrameAssetManager frameAssetManager;
 	private final FrameStyleConverter frameStyleConverter;
+	private final SubscriptionPolicyService subscriptionPolicyService;
 
 	@Override
 	public void createFrame(Long userId, FrameCreateRequest request) {
 
 		User user = userReader.getUserById(userId);
+		subscriptionPolicyService.assertAndConsumeFrameCreateQuota(user);
 
 		Map<String, String> resolvedUrlMap = frameAssetManager.moveTempFilesToPermanent(user, request.components());
 		BackgroundAttributes resolvedBackground = processNewBackground(user, request.background());
@@ -71,8 +75,10 @@ public class FrameServiceImpl implements FrameService {
 	@Override
 	public List<FrameResponse> getMyFrame(Long userId) {
 		User user = userReader.getUserById(userId);
+		LocalDateTime cutoff = subscriptionPolicyService.resolveHistoryCutoff(user);
 
 		return frameRepository.findAllByUser(user).stream()
+			.filter(frame -> isWithinHistoryWindow(frame.getCreatedAt(), cutoff))
 			.map(this::toFrameResponse)
 			.toList();
 	}
@@ -82,6 +88,7 @@ public class FrameServiceImpl implements FrameService {
 	public FrameResponse getFrame(Long frameId, Long userId) {
 		Frame frame = findFrameById(frameId);
 		validateOwner(frame, userId);
+		subscriptionPolicyService.assertHistoryAccessible(frame.getUser(), frame.getCreatedAt());
 
 		return toFrameResponse(frame);
 	}
@@ -180,13 +187,14 @@ public class FrameServiceImpl implements FrameService {
 		return componentRequests.stream()
 			.map(dto -> {
 				String finalKey = resolvedUrlMap.getOrDefault(dto.source(), dto.source());
-				String styleJson = frameStyleConverter.convertToJson(dto.style());
+				String styleJson = frameStyleConverter.convertToJson(dto.styleJson());
 
 				return FrameComponent.builder()
 					.type(dto.type())
 					.source(finalKey)
 					.x(dto.x()).y(dto.y())
 					.width(dto.width()).height(dto.height())
+					.scale(dto.scale())
 					.rotation(dto.rotation()).zIndex(dto.zIndex())
 					.styleJson(styleJson)
 					.build();
@@ -259,6 +267,13 @@ public class FrameServiceImpl implements FrameService {
 			return vidBg.getKey();
 		}
 		return null;
+	}
+
+	private boolean isWithinHistoryWindow(LocalDateTime createdAt, LocalDateTime cutoff) {
+		if (cutoff == null || createdAt == null) {
+			return true;
+		}
+		return !createdAt.isBefore(cutoff);
 	}
 
 }

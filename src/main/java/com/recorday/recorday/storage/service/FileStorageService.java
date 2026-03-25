@@ -34,6 +34,19 @@ public interface FileStorageService {
 	String generatePresignedGetUrl(String key);
 
 	/**
+	 * @param key S3 object key
+	 * @return 다운로드를 강제하는 presigned URL 문자열
+	 */
+	String generatePresignedDownloadUrl(String key);
+
+	/**
+	 * @param key S3 object key
+	 * @param downloadFileName 다운로드 시 노출할 파일명
+	 * @return 다운로드를 강제하는 presigned URL 문자열
+	 */
+	String generatePresignedDownloadUrl(String key, String downloadFileName);
+
+	/**
 	 * 클라이언트가 S3에 직접 PUT 업로드 하기 위한 Presigned URL 발급
 	 */
 	PresignedUploadResponse generatePresignedUploadUrl(

@@ -1,7 +1,6 @@
 package com.recorday.recorday.storage.service;
 
 import java.io.InputStream;
-import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Map;
@@ -63,7 +62,9 @@ public class S3FileStorageService implements FileStorageService {
 	public String upload(String dir, String filename, InputStream inputStream, long contentLength, String contentType) {
 
 		String extension = extractExtension(filename);
-		String uniqueName = UUID.randomUUID() + extension;
+		String uniqueName = extension.isEmpty()
+			? UUID.randomUUID().toString()
+			: UUID.randomUUID() + "." + extension;
 		String key = (dir != null && !dir.isBlank())
 			? dir + "/" + uniqueName
 			: uniqueName;
@@ -103,6 +104,33 @@ public class S3FileStorageService implements FileStorageService {
 		GetObjectRequest getObjectRequest = GetObjectRequest.builder()
 			.bucket(bucketName)
 			.key(key)
+			.build();
+
+		GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
+			.signatureDuration(EXPIRY)
+			.getObjectRequest(getObjectRequest)
+			.build();
+
+		return s3Presigner.presignGetObject(presignRequest).url().toString();
+	}
+
+	@Override
+	public String generatePresignedDownloadUrl(String key) {
+		return generatePresignedDownloadUrl(key, null);
+	}
+
+	@Override
+	public String generatePresignedDownloadUrl(String key, String downloadFileName) {
+		String filename = StringUtils.hasText(downloadFileName)
+			? sanitizeFilename(downloadFileName)
+			: extractFilenameFromKey(key);
+		String contentDisposition = buildContentDisposition(filename);
+
+		GetObjectRequest getObjectRequest = GetObjectRequest.builder()
+			.bucket(bucketName)
+			.key(key)
+			.responseContentDisposition(contentDisposition)
+			.responseContentType("application/octet-stream")
 			.build();
 
 		GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
@@ -203,5 +231,108 @@ public class S3FileStorageService implements FileStorageService {
 		if (idx == -1 || idx == filename.length() - 1)
 			return "";
 		return filename.substring(idx + 1);
+	}
+
+	private String extractFilenameFromKey(String key) {
+		if (!StringUtils.hasText(key)) {
+			return "file";
+		}
+
+		int idx = key.lastIndexOf('/');
+		String filename = (idx >= 0 && idx < key.length() - 1) ? key.substring(idx + 1) : key;
+		return sanitizeFilename(filename);
+	}
+
+	private String sanitizeFilename(String filename) {
+		if (!StringUtils.hasText(filename)) {
+			return "file";
+		}
+
+		String sanitized = filename
+			.replace("\\", "")
+			.replace("/", "_")
+			.replace("\"", "")
+			.replace(";", "_")
+			.replace(":", "_")
+			.replace("\r", "")
+			.replace("\n", "")
+			.trim();
+
+		return sanitized.isEmpty() ? "file" : sanitized;
+	}
+
+	private String buildContentDisposition(String filename) {
+		String asciiFallback = buildAsciiFallbackFilename(filename);
+		String encodedUtf8Name = encodeRfc5987Value(filename);
+		return "attachment; filename=\"" + asciiFallback + "\"; filename*=UTF-8''" + encodedUtf8Name;
+	}
+
+	private String buildAsciiFallbackFilename(String filename) {
+		int dotIndex = filename.lastIndexOf('.');
+		String base = filename;
+		String extension = "";
+
+		if (dotIndex > 0 && dotIndex < filename.length() - 1) {
+			base = filename.substring(0, dotIndex);
+			extension = filename.substring(dotIndex);
+		}
+
+		String asciiBase = base
+			.replaceAll("[^\\x20-\\x7E]", "_")
+			.replaceAll("[^A-Za-z0-9._ -]", "_")
+			.replaceAll("\\s+", " ")
+			.trim();
+
+		if (!StringUtils.hasText(asciiBase)) {
+			asciiBase = "download";
+		}
+
+		String asciiExtension = extension.replaceAll("[^A-Za-z0-9.]", "");
+		if (".".equals(asciiExtension)) {
+			asciiExtension = "";
+		}
+
+		return asciiBase + asciiExtension;
+	}
+
+	private String encodeRfc5987Value(String value) {
+		byte[] bytes = value.getBytes(StandardCharsets.UTF_8);
+		StringBuilder encoded = new StringBuilder(bytes.length * 3);
+
+		for (byte b : bytes) {
+			int c = b & 0xFF;
+			if (isRfc5987AttrChar(c)) {
+				encoded.append((char)c);
+			} else {
+				encoded.append('%');
+				encoded.append(toHexUpper(c >> 4));
+				encoded.append(toHexUpper(c));
+			}
+		}
+
+		return encoded.toString();
+	}
+
+	private boolean isRfc5987AttrChar(int c) {
+		return (c >= '0' && c <= '9')
+			|| (c >= 'A' && c <= 'Z')
+			|| (c >= 'a' && c <= 'z')
+			|| c == '!'
+			|| c == '#'
+			|| c == '$'
+			|| c == '&'
+			|| c == '+'
+			|| c == '-'
+			|| c == '.'
+			|| c == '^'
+			|| c == '_'
+			|| c == '`'
+			|| c == '|'
+			|| c == '~';
+	}
+
+	private char toHexUpper(int value) {
+		int nibble = value & 0x0F;
+		return (char)(nibble < 10 ? ('0' + nibble) : ('A' + nibble - 10));
 	}
 }

@@ -6,6 +6,7 @@ import java.util.List;
 
 import com.recorday.recorday.auth.oauth2.enums.Provider;
 import com.recorday.recorday.frame.entity.Frame;
+import com.recorday.recorday.subscription.entity.UserSubscription;
 import com.recorday.recorday.user.enums.UserRole;
 import com.recorday.recorday.user.enums.UserStatus;
 import com.recorday.recorday.util.entity.BasePublicIdEntity;
@@ -15,11 +16,13 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.OneToMany;
+import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import lombok.AllArgsConstructor;
@@ -88,6 +91,9 @@ public class User extends BasePublicIdEntity {
 	@OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
 	private List<Frame> frames = new ArrayList<>();
 
+	@OneToOne(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+	private UserSubscription subscription;
+
 	// 연관관계 편의 메서드
 	public void addFrame(Frame frame) {
 		this.frames.add(frame);
@@ -98,6 +104,9 @@ public class User extends BasePublicIdEntity {
 		this.frames.remove(frame);
 	}
 
+	public void attachSubscription(UserSubscription subscription) {
+		this.subscription = subscription;
+	}
 
 	public void deleteRequested() {
 		this.userStatus = UserStatus.DELETED_REQUESTED;
@@ -111,7 +120,7 @@ public class User extends BasePublicIdEntity {
 
 	public void delete() {
 		this.userStatus = UserStatus.DELETED;
-		this.email = "deleted_" + this.id + "@recorday.local";
+		this.email = "deleted_" + this.id + "@harucut.local";
 		this.username = "탈퇴한 사용자";
 		this.password = null;
 		this.profileUrl = "resources/defaults/userDefaultImage.png";

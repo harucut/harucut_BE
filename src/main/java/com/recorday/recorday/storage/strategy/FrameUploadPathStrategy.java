@@ -9,9 +9,6 @@ import com.recorday.recorday.storage.enums.UploadType;
 @Component
 public class FrameUploadPathStrategy implements UploadPathStrategy{
 
-	private static final String TEMP_PATH_PREFIX = "temp";
-	private static final String UPLOAD_PATH_PREFIX = "uploads";
-
 	@Override
 	public UploadType getUploadType() {
 		return UploadType.FRAME;
@@ -19,10 +16,9 @@ public class FrameUploadPathStrategy implements UploadPathStrategy{
 
 	@Override
 	public String generateKey(String publicId, String originalFilename, boolean isTemp) {
-		String rootPath = isTemp ? TEMP_PATH_PREFIX : UPLOAD_PATH_PREFIX;
 		String extension = extractExtension(originalFilename);
 		String uniqueName = UUID.randomUUID() + extension;
 
-		return String.format("%s/users/%s/frames/%s", rootPath, publicId, uniqueName);
+		return String.format("uploads/users/%s/webm/%s", publicId, uniqueName);
 	}
 }

@@ -44,7 +44,7 @@ public class PasswordServiceImpl implements PasswordService {
 			throw new BusinessException(AuthErrorCode.INVALID_TOKEN);
 		}
 
-		User user = userReader.getUserByEmailAndProvider(email, Provider.RECORDAY);
+		User user = userReader.getUserByEmailAndProvider(email, Provider.HARUCUT);
 
 		user.changePassword(passwordEncoder.encode(newPassword));
 
@@ -80,12 +80,12 @@ public class PasswordServiceImpl implements PasswordService {
 	@Transactional
 	public void changePassword(Long userId, String password, String oldPassword, String newPassword) {
 
-		if (!passwordEncoder.matches(password, oldPassword)) {
+		if (!passwordEncoder.matches(oldPassword, password)) {
 			throw new BusinessException(AuthErrorCode.WRONG_PASSWORD);
 		}
 
 		User user = userReader.getUserById(userId);
 
-		user.changePassword(newPassword);
+		user.changePassword(passwordEncoder.encode(newPassword));
 	}
 }

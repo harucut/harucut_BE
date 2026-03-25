@@ -108,7 +108,7 @@ class FrameRepositoryTest {
 			.email(email)
 			.username("tester")
 			.profileUrl("http://profile.url")
-			.provider(Provider.RECORDAY)
+			.provider(Provider.HARUCUT)
 			.userRole(UserRole.ROLE_USER)
 			.userStatus(UserStatus.ACTIVE)
 			.build();

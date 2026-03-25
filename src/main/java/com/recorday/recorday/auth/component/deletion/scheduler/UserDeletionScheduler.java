@@ -29,6 +29,7 @@ public class UserDeletionScheduler {
 		LocalDateTime now = LocalDateTime.now(clock);
 		LocalDateTime threshold = now.minusDays(7);
 
+
 		List<Long> userIds = userRepository.findExpiredDeleteRequestedUserIds(
 			UserStatus.DELETED_REQUESTED,
 			threshold
@@ -36,6 +37,7 @@ public class UserDeletionScheduler {
 
 		for (Long userId : userIds) {
 			try {
+				log.info("userId={} 탈퇴 배치 처리 시작", userId);
 				userExitBatchService.exitInNewTransaction(userId);
 			} catch (Exception e) {
 				log.warn("[탈퇴 일괄처리 예외] 발생 유저 Id {} ", userId, e);
