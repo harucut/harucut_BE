@@ -36,11 +36,11 @@ class SubscriptionPolicyServiceTest {
 	}
 
 	@Test
-	@DisplayName("PLUS 요금제는 월간 프레임 생성 10회까지 허용된다")
+	@DisplayName("PLUS 요금제는 계정 전체 프레임 생성 5회까지 허용된다")
 	void assertAndConsumeFrameCreateQuota_plusLimit() {
 		User user = createUser(PlanTier.PLUS);
 
-		for (int i = 0; i < 10; i++) {
+		for (int i = 0; i < 5; i++) {
 			subscriptionPolicyService.assertAndConsumeFrameCreateQuota(user);
 		}
 
@@ -53,16 +53,22 @@ class SubscriptionPolicyServiceTest {
 	}
 
 	@Test
-	@DisplayName("PRO 요금제는 영상 다운로드 제한이 없다")
-	void assertAndConsumeVideoDownloadQuota_proUnlimited() {
+	@DisplayName("PRO 요금제는 월간 영상 다운로드 30회까지 허용된다")
+	void assertAndConsumeVideoDownloadQuota_proLimit() {
 		User user = createUser(PlanTier.PRO);
 		UserSubscription subscription = user.getSubscription();
 
-		for (int i = 0; i < 100; i++) {
+		for (int i = 0; i < 30; i++) {
 			subscriptionPolicyService.assertAndConsumeVideoDownloadQuota(user);
 		}
 
-		assertThat(subscription.getCurrentVideoDownloadCount()).isEqualTo(0);
+		assertThat(subscription.getCurrentVideoDownloadCount()).isEqualTo(30);
+		assertThatThrownBy(() -> subscriptionPolicyService.assertAndConsumeVideoDownloadQuota(user))
+			.isInstanceOf(BusinessException.class)
+			.satisfies(exception -> {
+				BusinessException businessException = (BusinessException) exception;
+				assertThat(businessException.getErrorCode()).isEqualTo(UserErrorCode.PLAN_VIDEO_DOWNLOAD_LIMIT_EXCEEDED);
+			});
 	}
 
 	@Test
@@ -88,7 +94,7 @@ class SubscriptionPolicyServiceTest {
 			.currentCycleStartAt(pastStart)
 			.currentCycleEndAt(pastEnd)
 			.currentVideoDownloadCount(1)
-			.currentFrameCreateCount(0)
+			.currentFrameCreateCount(2)
 			.build();
 		user.attachSubscription(subscription);
 
@@ -96,15 +102,16 @@ class SubscriptionPolicyServiceTest {
 			.doesNotThrowAnyException();
 
 		assertThat(subscription.getCurrentVideoDownloadCount()).isEqualTo(1);
+		assertThat(subscription.getTotalFrameCreateCount()).isEqualTo(2);
 		assertThat(subscription.getCurrentCycleStartAt()).isEqualTo(pastEnd);
 		assertThat(subscription.getCurrentCycleEndAt()).isEqualTo(pastEnd.plusDays(31));
 	}
 
 	@Test
-	@DisplayName("BASIC 요금제는 7일 초과 기록 접근 시 예외가 발생한다")
+	@DisplayName("BASIC 요금제는 3일 초과 기록 접근 시 예외가 발생한다")
 	void assertHistoryAccessible_basicExceeded() {
 		User user = createUser(PlanTier.BASIC);
-		LocalDateTime oldRecord = LocalDateTime.now().minusDays(8);
+		LocalDateTime oldRecord = LocalDateTime.now().minusDays(4);
 
 		assertThatThrownBy(() -> subscriptionPolicyService.assertHistoryAccessible(user, oldRecord))
 			.isInstanceOf(BusinessException.class)

@@ -81,7 +81,7 @@ public class UserSubscription extends BaseEntity {
 
 	@Builder.Default
 	@Column(name = "current_frame_create_count", nullable = false)
-	// 현재 사이클 프레임 생성 사용 횟수.
+	// 계정 전체 누적 프레임 생성 사용 횟수.
 	private int currentFrameCreateCount = 0;
 
 	@Builder.Default
@@ -139,7 +139,6 @@ public class UserSubscription extends BaseEntity {
 		}
 
 		this.currentVideoDownloadCount = 0;
-		this.currentFrameCreateCount = 0;
 	}
 
 	public void startNewQuotaCycle(LocalDateTime paidAt) {
@@ -147,7 +146,6 @@ public class UserSubscription extends BaseEntity {
 		this.currentCycleStartAt = base;
 		this.currentCycleEndAt = base.plusDays(31);
 		this.currentVideoDownloadCount = 0;
-		this.currentFrameCreateCount = 0;
 	}
 
 	public void increaseVideoDownloadCount() {
@@ -156,5 +154,13 @@ public class UserSubscription extends BaseEntity {
 
 	public void increaseFrameCreateCount() {
 		this.currentFrameCreateCount++;
+	}
+
+	public int getTotalFrameCreateCount() {
+		return currentFrameCreateCount;
+	}
+
+	public void increaseTotalFrameCreateCount() {
+		increaseFrameCreateCount();
 	}
 }

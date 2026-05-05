@@ -31,18 +31,17 @@ public class SubscriptionPolicyService {
 
 	public void assertAndConsumeFrameCreateQuota(User user) {
 		UserSubscription subscription = resolveSubscription(user);
-		subscription.syncQuotaCycle(LocalDateTime.now());
 
 		PlanTier planTier = subscription.getPlanTier();
 		if (planTier.isFrameCreateUnlimited()) {
 			return;
 		}
 
-		if (subscription.getCurrentFrameCreateCount() >= planTier.getMonthlyFrameCreateLimit()) {
+		if (subscription.getTotalFrameCreateCount() >= planTier.getTotalFrameCreateLimit()) {
 			throw new BusinessException(UserErrorCode.PLAN_FRAME_CREATE_LIMIT_EXCEEDED);
 		}
 
-		subscription.increaseFrameCreateCount();
+		subscription.increaseTotalFrameCreateCount();
 	}
 
 	public LocalDateTime resolveHistoryCutoff(User user) {
