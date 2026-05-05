@@ -3,8 +3,10 @@ package com.recorday.recorday.media.service;
 import java.net.URI;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.List;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -20,6 +22,7 @@ import com.recorday.recorday.media.repository.UserMediaRepository;
 import com.recorday.recorday.storage.service.FileStorageService;
 import com.recorday.recorday.user.entity.User;
 import com.recorday.recorday.user.service.SubscriptionPolicyService;
+import com.recorday.recorday.util.response.PageResponse;
 import com.recorday.recorday.util.user.UserReader;
 
 import lombok.RequiredArgsConstructor;
@@ -71,17 +74,13 @@ public class UserMediaServiceImpl implements UserMediaService {
 
 	@Transactional(readOnly = true)
 	@Override
-	public List<UserMediaResponse> getMyMedia(Long userId, UserMediaType mediaType) {
+	public PageResponse<UserMediaResponse> getMyMedia(Long userId, UserMediaType mediaType, int page, int size) {
 		User user = userReader.getUserById(userId);
+		Pageable pageable = createPageable(page, size);
 		LocalDateTime cutoff = subscriptionPolicyService.resolveHistoryCutoff(user);
-		List<UserMedia> mediaList = mediaType == null
-			? userMediaRepository.findAllByUserOrderByCreatedAtDesc(user)
-			: userMediaRepository.findAllByUserAndMediaTypeOrderByCreatedAtDesc(user, mediaType);
+		Page<UserMedia> mediaPage = findMediaPage(user, mediaType, cutoff, pageable);
 
-		return mediaList.stream()
-			.filter(media -> isWithinHistoryWindow(media.getCreatedAt(), cutoff))
-			.map(this::toResponse)
-			.toList();
+		return PageResponse.from(mediaPage.map(this::toResponse));
 	}
 
 	@Override
@@ -238,16 +237,42 @@ public class UserMediaServiceImpl implements UserMediaService {
 		return truncateFileName(finalBase + ext, 255);
 	}
 
-	private boolean isWithinHistoryWindow(LocalDateTime createdAt, LocalDateTime cutoff) {
-		if (cutoff == null || createdAt == null) {
-			return true;
-		}
-		return !createdAt.isBefore(cutoff);
-	}
-
 	private String buildTranscodedDisplayNameFromOriginal(String originalFileName) {
 		String base = sanitizeBaseName(removeExtension(originalFileName));
 		return StringUtils.hasText(base) ? base + ".mp4" : null;
+	}
+
+	private Pageable createPageable(int page, int size) {
+		if (page < 0) {
+			throw new BusinessException(GlobalErrorCode.INVALID_INPUT_VALUE, "page는 0 이상이어야 합니다.");
+		}
+		if (size < 1) {
+			throw new BusinessException(GlobalErrorCode.INVALID_INPUT_VALUE, "size는 1 이상이어야 합니다.");
+		}
+
+		return PageRequest.of(page, size);
+	}
+
+	private Page<UserMedia> findMediaPage(
+		User user,
+		UserMediaType mediaType,
+		LocalDateTime cutoff,
+		Pageable pageable
+	) {
+		if (cutoff == null) {
+			return mediaType == null
+				? userMediaRepository.findAllByUserOrderByCreatedAtDesc(user, pageable)
+				: userMediaRepository.findAllByUserAndMediaTypeOrderByCreatedAtDesc(user, mediaType, pageable);
+		}
+
+		return mediaType == null
+			? userMediaRepository.findAllByUserAndCreatedAtGreaterThanEqualOrderByCreatedAtDesc(user, cutoff, pageable)
+			: userMediaRepository.findAllByUserAndMediaTypeAndCreatedAtGreaterThanEqualOrderByCreatedAtDesc(
+				user,
+				mediaType,
+				cutoff,
+				pageable
+			);
 	}
 
 	private String sanitizeBaseName(String name) {

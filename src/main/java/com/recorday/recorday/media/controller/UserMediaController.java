@@ -1,7 +1,5 @@
 package com.recorday.recorday.media.controller;
 
-import java.util.List;
-
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -19,6 +17,7 @@ import com.recorday.recorday.media.dto.request.UserMediaRegisterRequest;
 import com.recorday.recorday.media.dto.response.UserMediaResponse;
 import com.recorday.recorday.media.enums.UserMediaType;
 import com.recorday.recorday.media.service.UserMediaService;
+import com.recorday.recorday.util.response.PageResponse;
 import com.recorday.recorday.util.response.Response;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -44,13 +43,15 @@ public class UserMediaController {
 		return Response.ok(response).toResponseEntity();
 	}
 
-	@Operation(summary = "내 미디어 목록 조회", description = "사용자의 사진/영상 목록과 다운로드 URL을 반환합니다.")
+	@Operation(summary = "내 미디어 목록 조회", description = "사용자의 사진/영상 목록과 다운로드 URL을 페이지 단위로 반환합니다.")
 	@GetMapping
-	public ResponseEntity<Response<List<UserMediaResponse>>> getMyMedia(
+	public ResponseEntity<Response<PageResponse<UserMediaResponse>>> getMyMedia(
 		@AuthenticationPrincipal CustomUserPrincipal principal,
-		@RequestParam(value = "type", required = false) UserMediaType type
+		@RequestParam(value = "type", required = false) UserMediaType type,
+		@RequestParam(value = "page", defaultValue = "0") int page,
+		@RequestParam(value = "size", defaultValue = "10") int size
 	) {
-		List<UserMediaResponse> response = userMediaService.getMyMedia(principal.getId(), type);
+		PageResponse<UserMediaResponse> response = userMediaService.getMyMedia(principal.getId(), type, page, size);
 		return Response.ok(response).toResponseEntity();
 	}
 
