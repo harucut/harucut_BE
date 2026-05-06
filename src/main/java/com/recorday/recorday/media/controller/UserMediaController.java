@@ -21,6 +21,8 @@ import com.recorday.recorday.util.response.PageResponse;
 import com.recorday.recorday.util.response.Response;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -46,9 +48,12 @@ public class UserMediaController {
 	@Operation(summary = "내 미디어 목록 조회", description = "사용자의 사진/영상 목록과 다운로드 URL을 페이지 단위로 반환합니다.")
 	@GetMapping
 	public ResponseEntity<Response<PageResponse<UserMediaResponse>>> getMyMedia(
-		@AuthenticationPrincipal CustomUserPrincipal principal,
+		@Parameter(hidden = true) @AuthenticationPrincipal CustomUserPrincipal principal,
+		@Parameter(description = "미디어 타입 필터. PHOTO는 사진, VIDEO는 영상입니다.", example = "PHOTO")
 		@RequestParam(value = "type", required = false) UserMediaType type,
+		@Parameter(description = "페이지 번호(0부터 시작)", schema = @Schema(defaultValue = "0", minimum = "0"))
 		@RequestParam(value = "page", defaultValue = "0") int page,
+		@Parameter(description = "페이지 크기. 기본값은 10입니다.", schema = @Schema(defaultValue = "10", minimum = "1"))
 		@RequestParam(value = "size", defaultValue = "10") int size
 	) {
 		PageResponse<UserMediaResponse> response = userMediaService.getMyMedia(principal.getId(), type, page, size);
