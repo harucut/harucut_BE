@@ -56,7 +56,7 @@ public class UserMediaServiceImpl implements UserMediaService {
 			})
 			.orElseGet(() -> {
 				String displayName = resolveDisplayName(
-					null,
+					request.displayName(),
 					request.mediaType(),
 					s3Key,
 					null,
@@ -95,13 +95,7 @@ public class UserMediaServiceImpl implements UserMediaService {
 			subscriptionPolicyService.assertAndConsumeVideoDownloadQuota(user);
 		}
 
-		String downloadName = resolveDisplayName(
-			media.getDisplayName(),
-			media.getMediaType(),
-			media.getS3Key(),
-			media.getOriginalFileName(),
-			media.getCreatedAt()
-		);
+		String downloadName = resolveDisplayNameForView(media);
 
 		return fileStorageService.generatePresignedDownloadUrl(media.getS3Key(), downloadName);
 	}
@@ -173,13 +167,7 @@ public class UserMediaServiceImpl implements UserMediaService {
 	}
 
 	private UserMediaResponse toResponse(UserMedia media) {
-		String displayName = resolveDisplayName(
-			media.getDisplayName(),
-			media.getMediaType(),
-			media.getS3Key(),
-			media.getOriginalFileName(),
-			media.getCreatedAt()
-		);
+		String displayName = resolveDisplayNameForView(media);
 		String downloadUrl = media.getMediaType() == UserMediaType.VIDEO
 			? null
 			: fileStorageService.generatePresignedDownloadUrl(media.getS3Key(), displayName);
@@ -193,6 +181,19 @@ public class UserMediaServiceImpl implements UserMediaService {
 			media.getOriginalS3Key(),
 			media.getOriginalFileName(),
 			media.getTranscodeJobId(),
+			media.getCreatedAt()
+		);
+	}
+
+	private String resolveDisplayNameForView(UserMedia media) {
+		if (StringUtils.hasText(media.getDisplayName())) {
+			return media.getDisplayName().trim();
+		}
+		return resolveDisplayName(
+			null,
+			media.getMediaType(),
+			media.getS3Key(),
+			media.getOriginalFileName(),
 			media.getCreatedAt()
 		);
 	}

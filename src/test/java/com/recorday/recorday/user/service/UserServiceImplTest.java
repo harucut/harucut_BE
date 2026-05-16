@@ -3,6 +3,8 @@ package com.recorday.recorday.user.service;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.BDDMockito.*;
 
+import java.time.LocalDateTime;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -14,6 +16,7 @@ import com.recorday.recorday.auth.oauth2.enums.Provider;
 import com.recorday.recorday.storage.service.FileStorageService;
 import com.recorday.recorday.subscription.entity.UserSubscription;
 import com.recorday.recorday.user.config.PlanPricingProperties;
+import com.recorday.recorday.user.dto.response.SubscriptionUsageResponse;
 import com.recorday.recorday.user.dto.response.UserInfoResponse;
 import com.recorday.recorday.user.entity.User;
 import com.recorday.recorday.user.enums.PlanTier;
@@ -67,20 +70,37 @@ class UserServiceImplTest {
 	}
 
 	@Test
-	@DisplayName("사용자명 변경 성공")
-	void changeUsername_사용자명_변경_성공() {
+	@DisplayName("구독 사용량 조회 시 프레임 생성/영상 다운로드 사용량 및 남은 가능 횟수를 반환한다")
+	void getSubscriptionUsage_성공() {
 		// given
 		Long userId = 1L;
-		String newUsername = "newUsername";
 		User user = createUser("test@example.com", "profile/user-1/profile.jpg");
+		UserSubscription subscription = user.getSubscription();
+
+		LocalDateTime now = LocalDateTime.now();
+		subscription.startNewQuotaCycle(now.minusDays(1));
+		subscription.increaseFrameCreateCount();
+		subscription.increaseFrameCreateCount();
+		subscription.increaseVideoDownloadCount();
 
 		given(userReader.getUserById(userId)).willReturn(user);
 
 		// when
-		userService.changeUsername(userId, newUsername);
+		SubscriptionUsageResponse response = userService.getSubscriptionUsage(userId);
 
 		// then
-		assertThat(user.getUsername()).isEqualTo(newUsername);
+		assertThat(response.planTier()).isEqualTo(PlanTier.BASIC.name());
+		assertThat(response.frameCreateTotalLimit()).isEqualTo(PlanTier.BASIC.getTotalFrameCreateLimit());
+		assertThat(response.frameCreateUsedCount()).isEqualTo(2);
+		assertThat(response.frameCreateRemainingCount()).isEqualTo(0);
+		assertThat(response.frameCreateUnlimited()).isFalse();
+
+		assertThat(response.videoDownloadMonthlyLimit()).isEqualTo(PlanTier.BASIC.getMonthlyVideoDownloadLimit());
+		assertThat(response.videoDownloadUsedCount()).isEqualTo(1);
+		assertThat(response.videoDownloadRemainingCount()).isEqualTo(0);
+		assertThat(response.videoDownloadUnlimited()).isFalse();
+		assertThat(response.currentCycleStartAt()).isNotNull();
+		assertThat(response.currentCycleEndAt()).isNotNull();
 
 		then(userReader).should(times(1)).getUserById(userId);
 	}
@@ -100,6 +120,25 @@ class UserServiceImplTest {
 
 		// then
 		assertThat(user.getProfileUrl()).isEqualTo(newS3Key);
+
+		then(userReader).should(times(1)).getUserById(userId);
+	}
+
+	@Test
+	@DisplayName("사용자명 변경 성공")
+	void changeUsername_사용자명_변경_성공() {
+		// given
+		Long userId = 1L;
+		String newUsername = "newUsername";
+		User user = createUser("test@example.com", "profile/user-1/profile.jpg");
+
+		given(userReader.getUserById(userId)).willReturn(user);
+
+		// when
+		userService.changeUsername(userId, newUsername);
+
+		// then
+		assertThat(user.getUsername()).isEqualTo(newUsername);
 
 		then(userReader).should(times(1)).getUserById(userId);
 	}

@@ -1,18 +1,20 @@
 package com.recorday.recorday.media.service;
 
-import java.util.HashMap;
+import java.time.LocalDateTime;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
-import org.springframework.web.context.request.async.DeferredResult;
 
 import com.recorday.recorday.exception.BusinessException;
+import com.recorday.recorday.exception.GlobalErrorCode;
+import com.recorday.recorday.media.dto.TranscodeTaskState;
+import com.recorday.recorday.media.dto.response.TranscodeTaskStatusResponse;
+import com.recorday.recorday.media.dto.response.TranscodeTaskSubmitResponse;
 import com.recorday.recorday.media.dto.response.UserMediaResponse;
+import com.recorday.recorday.media.repository.TranscodeTaskRepository;
 import com.recorday.recorday.storage.exception.StorageErrorCode;
-import com.recorday.recorday.util.response.Response;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -33,8 +35,8 @@ import software.amazon.awssdk.services.mediaconvert.model.OutputGroupSettings;
 public class TranscodingService {
 
 	private final MediaConvertClient mediaConvertClient;
-
-	private final Map<String, DeferredResult<ResponseEntity<Response<UserMediaResponse>>>> pendingRequests = new ConcurrentHashMap<>();
+	private final UserMediaService userMediaService;
+	private final TranscodeTaskRepository transcodeTaskRepository;
 
 	@Value("${aws.s3.bucket-name}")
 	private String bucketName;
@@ -45,7 +47,80 @@ public class TranscodingService {
 	@Value("${aws.mediaconvert.template-name}")
 	private String templateName;
 
-	public String createConversionJob(String userPublicId, String fileName) {
+	public TranscodeTaskSubmitResponse submitTranscodeTask(String userPublicId, String fileName) {
+		String taskId = UUID.randomUUID().toString();
+		LocalDateTime now = LocalDateTime.now();
+		TranscodeTaskState queuedState = TranscodeTaskState.queued(taskId, userPublicId, fileName, now);
+		transcodeTaskRepository.save(queuedState);
+
+		String jobId = createConversionJob(userPublicId, fileName);
+		LocalDateTime submittedAt = LocalDateTime.now();
+		TranscodeTaskState submittedState = queuedState.withSubmitted(jobId, submittedAt);
+		transcodeTaskRepository.save(submittedState);
+		transcodeTaskRepository.linkJobToTask(jobId, taskId);
+
+		return new TranscodeTaskSubmitResponse(taskId, jobId, submittedState.status(), submittedAt);
+	}
+
+	public TranscodeTaskStatusResponse getTaskStatus(String taskId, String userPublicId) {
+		TranscodeTaskState state = getTaskState(taskId, userPublicId);
+		return new TranscodeTaskStatusResponse(
+			state.taskId(),
+			state.jobId(),
+			state.status(),
+			state.errorMessage(),
+			state.media(),
+			state.createdAt(),
+			state.updatedAt()
+		);
+	}
+
+	public void markProgressing(String jobId) {
+		updateStateByJobId(jobId, state -> state.withProgressing(LocalDateTime.now()));
+	}
+
+	public void handleCompletedJob(
+		String jobId,
+		String userPublicId,
+		String originalFileName,
+		String outputS3Path
+	) {
+		updateStateByJobId(jobId, state -> {
+			UserMediaResponse mediaResponse = userMediaService.saveTranscodedVideo(
+				userPublicId,
+				originalFileName,
+				outputS3Path,
+				jobId
+			);
+			return state.withComplete(mediaResponse, LocalDateTime.now());
+		});
+	}
+
+	public void handleFailedJob(String jobId, String errorMessage) {
+		updateStateByJobId(jobId, state -> state.withError(errorMessage, LocalDateTime.now()));
+	}
+
+	private TranscodeTaskState getTaskState(String taskId, String userPublicId) {
+		TranscodeTaskState state = transcodeTaskRepository.findByTaskId(taskId)
+			.orElseThrow(() -> new BusinessException(GlobalErrorCode.NOT_FOUND, "변환 작업을 찾을 수 없습니다."));
+
+		if (!state.userPublicId().equals(userPublicId)) {
+			throw new BusinessException(GlobalErrorCode.FORBIDDEN, "다른 사용자의 변환 작업입니다.");
+		}
+		return state;
+	}
+
+	private void updateStateByJobId(String jobId, java.util.function.Function<TranscodeTaskState, TranscodeTaskState> updater) {
+		transcodeTaskRepository.findTaskIdByJobId(jobId)
+			.flatMap(transcodeTaskRepository::findByTaskId)
+			.ifPresentOrElse(state -> {
+				TranscodeTaskState updated = updater.apply(state);
+				transcodeTaskRepository.save(updated);
+				log.info("Transcode task updated. taskId={}, status={}", updated.taskId(), updated.status());
+			}, () -> log.warn("Transcode task not found by jobId={}", jobId));
+	}
+
+	private String createConversionJob(String userPublicId, String fileName) {
 
 		// 1. 경로 조립
 		// 입력: s3://my-bucket/uploads/users/{id}/webm/video.webm
@@ -53,10 +128,6 @@ public class TranscodingService {
 
 		// 출력: s3://my-bucket/uploads/users/{id}/mp4/
 		String outputS3Path = String.format("s3://%s/uploads/users/%s/mp4/", bucketName, userPublicId);
-
-		Map<String, String> userMetadata = new HashMap<>();
-		userMetadata.put("userPublicId", userPublicId);
-		userMetadata.put("originalFileName", fileName);
 
 		// 2. Job 설정 구성
 		CreateJobRequest createJobRequest = CreateJobRequest.builder()
@@ -82,37 +153,7 @@ public class TranscodingService {
 			return jobId;
 		} catch (MediaConvertException e) {
 			log.error("AWS MediaConvert Error: {}", e.getMessage());
-			throw new RuntimeException("비디오 변환 요청 실패", e);
-		}
-	}
-
-	public void registerDeferredResult(
-		String jobId,
-		DeferredResult<ResponseEntity<Response<UserMediaResponse>>> deferredResult
-	) {
-		pendingRequests.put(jobId, deferredResult);
-
-		deferredResult.onCompletion(() -> pendingRequests.remove(jobId));
-		deferredResult.onTimeout(() -> {
-			pendingRequests.remove(jobId);
-			deferredResult.setErrorResult(new BusinessException(StorageErrorCode.TRANSCODE_FAILED));
-		});
-	}
-
-	public void completeJob(String jobId, UserMediaResponse mediaResponse) {
-		DeferredResult<ResponseEntity<Response<UserMediaResponse>>> result = pendingRequests.remove(jobId);
-
-		if (result != null && !result.isSetOrExpired()) {
-			result.setResult(Response.ok(mediaResponse).toResponseEntity());
-		}
-	}
-
-	public void failJob(String jobId, String message) {
-		DeferredResult<ResponseEntity<Response<UserMediaResponse>>> result = pendingRequests.remove(jobId);
-
-		if (result != null && !result.isSetOrExpired()) {
-			result.setErrorResult(new BusinessException(StorageErrorCode.TRANSCODE_FAILED));
-			log.error("Job Failed: {}", message);
+			throw new BusinessException(StorageErrorCode.TRANSCODE_FAILED, "비디오 변환 요청 실패");
 		}
 	}
 }

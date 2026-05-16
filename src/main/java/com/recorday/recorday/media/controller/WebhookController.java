@@ -8,9 +8,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.RestTemplate;
 
 import com.recorday.recorday.media.dto.AwsSnsMessage;
-import com.recorday.recorday.media.dto.response.UserMediaResponse;
 import com.recorday.recorday.media.service.TranscodingService;
-import com.recorday.recorday.media.service.UserMediaService;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,7 +26,6 @@ public class WebhookController {
 
 	private final ObjectMapper objectMapper;
 	private final TranscodingService transcodingService;
-	private final UserMediaService userMediaService;
 
 	@PostMapping
 	public void handleMediaConvertNotification(@RequestBody String rawBody) {
@@ -67,23 +64,24 @@ public class WebhookController {
 			log.info("✅ 변환 완료! JobID: {}, Path: {}", jobId, outputS3Path);
 
 			try {
-				UserMediaResponse mediaResponse = userMediaService.saveTranscodedVideo(
+				transcodingService.handleCompletedJob(
+					jobId,
 					userPublicId,
 					originalFileName,
-					outputS3Path,
-					jobId
+					outputS3Path
 				);
-				transcodingService.completeJob(jobId, mediaResponse);
 			} catch (Exception e) {
 				log.error("변환 완료 후 DB 저장 실패. jobId={}, error={}", jobId, e.getMessage(), e);
-				transcodingService.failJob(jobId, "Failed to persist transcoded video");
+				transcodingService.handleFailedJob(jobId, "Failed to persist transcoded video");
 			}
 
+		} else if ("PROGRESSING".equals(state) || "STATUS_UPDATE".equals(state)) {
+			transcodingService.markProgressing(jobId);
 		} else if ("ERROR".equals(state)) {
 			String errorMessage = detail.path("errorMessage").asText("Unknown Error");
 			log.error("❌ 변환 실패 JobID: {}", jobId);
 
-			transcodingService.failJob(jobId, errorMessage);
+			transcodingService.handleFailedJob(jobId, errorMessage);
 		}
 	}
 }

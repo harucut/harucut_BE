@@ -9,11 +9,11 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.context.request.async.DeferredResult;
 
 import com.recorday.recorday.auth.entity.CustomUserPrincipal;
 import com.recorday.recorday.media.dto.TranscodeRequest;
-import com.recorday.recorday.media.dto.response.UserMediaResponse;
+import com.recorday.recorday.media.dto.response.TranscodeTaskStatusResponse;
+import com.recorday.recorday.media.dto.response.TranscodeTaskSubmitResponse;
 import com.recorday.recorday.media.service.TranscodingService;
 import com.recorday.recorday.storage.dto.request.PresignedUploadRequest;
 import com.recorday.recorday.storage.dto.response.PresignedUploadResponse;
@@ -22,6 +22,8 @@ import com.recorday.recorday.util.response.Response;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -78,23 +80,42 @@ public class FileController {
 
 	@Operation(
 		summary = "동영상 변환 요청 (WebM -> MP4)",
-		description = "S3에 WebM 업로드가 완료된 후, 이 API를 호출하면 MediaConvert 작업을 시작합니다. 완료되면 MP4 다운로드 URL을 포함해 응답합니다."
+		description = "S3에 WebM 업로드가 완료된 후, 이 API를 호출하면 MediaConvert 작업을 시작하고 즉시 taskId/jobId를 반환합니다."
 	)
+	@ApiResponses(value = {
+		@ApiResponse(responseCode = "202", description = "변환 작업 제출 성공"),
+		@ApiResponse(responseCode = "400", description = "잘못된 요청"),
+		@ApiResponse(responseCode = "401", description = "인증 실패"),
+		@ApiResponse(responseCode = "500", description = "변환 작업 제출 실패")
+	})
 	@PostMapping("/transcode")
-	public DeferredResult<ResponseEntity<Response<UserMediaResponse>>> startTranscoding(
+	public ResponseEntity<Response<TranscodeTaskSubmitResponse>> startTranscoding(
 		@RequestBody @Valid TranscodeRequest request,
 		@Parameter(hidden = true) @AuthenticationPrincipal CustomUserPrincipal principal
 	) {
-		// 1. 타임아웃 설정
-		DeferredResult<ResponseEntity<Response<UserMediaResponse>>> deferredResult = new DeferredResult<>(120000L);
+		TranscodeTaskSubmitResponse response = transcodingService.submitTranscodeTask(
+			principal.getPublicId(),
+			request.filename()
+		);
+		return ResponseEntity.accepted().body(Response.ok(response));
+	}
 
-		// 2. AWS에 요청 보내고 Job ID 받기
-		String jobId = transcodingService.createConversionJob(principal.getPublicId(), request.filename());
-
-		// 3. Job ID와 대기 객체를 서비스에 등록 (Webhook이 올 때까지 대기 시작)
-		transcodingService.registerDeferredResult(jobId, deferredResult);
-
-		// 4. 즉시 리턴하지만, 실제 응답은 Webhook이 trigger 하거나 타임아웃 될 때 나감
-		return deferredResult;
+	@Operation(
+		summary = "동영상 변환 상태 조회",
+		description = "taskId를 기준으로 MediaConvert 변환 상태를 조회합니다."
+	)
+	@ApiResponses(value = {
+		@ApiResponse(responseCode = "200", description = "상태 조회 성공"),
+		@ApiResponse(responseCode = "401", description = "인증 실패"),
+		@ApiResponse(responseCode = "403", description = "다른 사용자의 작업 접근"),
+		@ApiResponse(responseCode = "404", description = "변환 작업을 찾을 수 없음")
+	})
+	@GetMapping("/transcode/status")
+	public ResponseEntity<Response<TranscodeTaskStatusResponse>> getTranscodeStatus(
+		@RequestParam("taskId") String taskId,
+		@Parameter(hidden = true) @AuthenticationPrincipal CustomUserPrincipal principal
+	) {
+		TranscodeTaskStatusResponse response = transcodingService.getTaskStatus(taskId, principal.getPublicId());
+		return Response.ok(response).toResponseEntity();
 	}
 }

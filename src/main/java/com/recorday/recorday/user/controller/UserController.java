@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.recorday.recorday.auth.entity.CustomUserPrincipal;
 import com.recorday.recorday.user.dto.request.ChangeProfileImageRequest;
+import com.recorday.recorday.user.dto.response.SubscriptionUsageResponse;
 import com.recorday.recorday.user.dto.response.UserInfoResponse;
 import com.recorday.recorday.user.service.UserService;
 import com.recorday.recorday.util.response.Response;
@@ -36,6 +37,18 @@ public class UserController {
 		UserInfoResponse userInfo = userService.getUserInfo(principal.getId());
 
 		return Response.ok(userInfo).toResponseEntity();
+	}
+
+	@Operation(
+		summary = "구독 사용량 조회",
+		description = "로그인한 사용자의 프레임 생성 누적 사용량과 영상 다운로드 월간 사용량을 조회합니다."
+	)
+	@GetMapping("/subscription/usage")
+	public ResponseEntity<Response<SubscriptionUsageResponse>> getSubscriptionUsage(
+		@Parameter(hidden = true) @AuthenticationPrincipal CustomUserPrincipal principal
+	) {
+		SubscriptionUsageResponse usage = userService.getSubscriptionUsage(principal.getId());
+		return Response.ok(usage).toResponseEntity();
 	}
 
 	@Operation(summary = "사용자 이름 변경", description = "로그인한 사용자의 닉네임(Username)을 변경합니다.")
